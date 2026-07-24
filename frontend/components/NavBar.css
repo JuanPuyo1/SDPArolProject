@@ -1,0 +1,66 @@
+.nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 32px;
+  background: var(--arol-navy);
+  border-bottom: 3px solid var(--arol-teal);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.nav-bar__brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.nav-bar__mark {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.nav-bar__product {
+  font-size: 14px;
+  color: var(--arol-teal);
+}
+
+.nav-bar__links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nav-bar__link {
+  color: #d7dce3;
+  text-decoration: none;
+  font-size: 15px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav-bar__link:hover {
+  background: var(--arol-navy-light);
+  color: #fff;
+}
+
+.nav-bar__link--active {
+  background: var(--arol-teal);
+  color: var(--arol-navy);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .nav-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+}
