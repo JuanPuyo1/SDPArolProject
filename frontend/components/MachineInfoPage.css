@@ -43,18 +43,8 @@
   color: #fff;
 }
 
-@media (prefers-color-scheme: dark) {
-  .btn--ghost {
-    border-color: var(--border);
-    color: var(--text-h);
-  }
-  .btn--ghost:hover {
-    background: var(--arol-navy-light);
-  }
-}
-
 .panel {
-  background: var(--bg);
+  background: #f2f2f2;
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
@@ -64,7 +54,7 @@
 .panel h2 {
   margin-bottom: 16px;
   font-size: 18px;
-  color: var(--arol-teal-dark);
+  color: #000;
 }
 
 .panel--wide {
@@ -73,8 +63,8 @@
 
 /* Hero */
 .machine-hero {
-  background: var(--arol-navy);
-  color: #fff;
+  background: #f2f2f2;
+  color: #000;
   border-radius: 16px;
   padding: 40px;
   text-align: left;
@@ -85,20 +75,20 @@
   letter-spacing: 2px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--arol-teal);
+  color: var(--arol-teal-dark);
   margin-bottom: 8px;
 }
 
 .machine-hero__title {
   margin: 0;
   font-size: 42px;
-  color: #fff;
+  color: #000;
   letter-spacing: -0.5px;
 }
 
 .machine-hero__subtitle {
   margin: 4px 0 16px;
-  color: #a9b4c2;
+  color: #333;
   font-size: 16px;
 }
 
@@ -110,9 +100,9 @@
 }
 
 .tag {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #e7ecf2;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  color: #000;
   font-size: 13px;
   padding: 5px 12px;
   border-radius: 999px;
@@ -120,7 +110,7 @@
 
 .machine-hero__description {
   max-width: 760px;
-  color: #cbd3dc;
+  color: #000;
   line-height: 1.6;
   margin-bottom: 24px;
 }
@@ -132,12 +122,13 @@
 }
 
 .machine-hero__actions .btn--ghost {
-  border-color: rgba(255, 255, 255, 0.4);
-  color: #fff;
+  border-color: var(--arol-navy);
+  color: var(--arol-navy);
 }
 
 .machine-hero__actions .btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--arol-navy);
+  color: #fff;
 }
 
 /* Stats row */
@@ -148,7 +139,7 @@
 }
 
 .stat-card {
-  background: var(--bg);
+  background: #f2f2f2;
   border: 1px solid var(--border);
   border-top: 3px solid var(--arol-orange);
   border-radius: 10px;
@@ -160,13 +151,13 @@
 
 .stat-card__label {
   font-size: 13px;
-  color: var(--text);
+  color: #000;
 }
 
 .stat-card__value {
   font-size: 22px;
   font-weight: 700;
-  color: var(--text-h);
+  color: #000;
 }
 
 /* Info grid */
@@ -189,14 +180,14 @@
 }
 
 .def-list dt {
-  color: var(--text);
+  color: #000;
   font-size: 14px;
 }
 
 .def-list dd {
   margin: 0;
   font-weight: 600;
-  color: var(--text-h);
+  color: #000;
   text-align: right;
 }
 
@@ -230,6 +221,7 @@
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
+  background: #f2f2f2;
 }
 
 .unit-card__code {
@@ -248,13 +240,13 @@
 .unit-card h3 {
   margin: 0 0 4px;
   font-size: 15px;
-  color: var(--text-h);
+  color: #000;
 }
 
 .unit-card p {
   margin: 0;
   font-size: 14px;
-  color: var(--text);
+  color: #000;
   line-height: 1.5;
 }
 
