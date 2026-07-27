@@ -1,3 +1,22 @@
-# Local telemetry / manual datasets (not for GitHub)
+# Local datasets
 Data/
 Data.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# Django
+*.sqlite3
+db.sqlite3
+
+# Node / frontend
+node_modules/
+dist/
+.DS_Store
+.env
+
+.cursorrules

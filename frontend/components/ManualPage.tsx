@@ -1,7 +1,27 @@
-import { machine } from '../src/data/machine'
+import { useDefaultMachine } from '../src/hooks/useMachine'
 import './ManualPage.css'
 
 export default function ManualPage() {
+  const { machine, loading, error } = useDefaultMachine()
+
+  if (loading) {
+    return (
+      <div className="manual-page">
+        <p className="manual-page__status">Loading manual…</p>
+      </div>
+    )
+  }
+
+  if (error || !machine) {
+    return (
+      <div className="manual-page">
+        <p className="manual-page__status manual-page__status--error">
+          {error || 'No machine found for this account.'}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="manual-page">
       <div className="manual-page__bar">

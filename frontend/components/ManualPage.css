@@ -9,6 +9,15 @@
   margin: 0 auto;
 }
 
+.manual-page__status {
+  margin: 24px 0;
+  color: var(--text);
+}
+
+.manual-page__status--error {
+  color: #b42318;
+}
+
 .manual-page__bar {
   display: flex;
   align-items: center;

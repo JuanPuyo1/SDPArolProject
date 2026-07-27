@@ -8,6 +8,15 @@
   margin: 0 auto;
 }
 
+.machine-page__status {
+  margin: 24px 0;
+  color: var(--text);
+}
+
+.machine-page__status--error {
+  color: #b42318;
+}
+
 /* Shared primitives (buttons, panels, tags) reused by the manual & chatbot pages */
 .btn {
   display: inline-flex;

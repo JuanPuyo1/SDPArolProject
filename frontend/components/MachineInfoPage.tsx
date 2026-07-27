@@ -1,8 +1,28 @@
 import { Link } from 'react-router-dom'
-import { machine } from '../src/data/machine'
+import { useDefaultMachine } from '../src/hooks/useMachine'
 import './MachineInfoPage.css'
 
 export default function MachineInfoPage() {
+  const { machine, loading, error } = useDefaultMachine()
+
+  if (loading) {
+    return (
+      <div className="machine-page">
+        <p className="machine-page__status">Loading machine record…</p>
+      </div>
+    )
+  }
+
+  if (error || !machine) {
+    return (
+      <div className="machine-page">
+        <p className="machine-page__status machine-page__status--error">
+          {error || 'No machine found for this account.'}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="machine-page">
       <section className="machine-hero">
