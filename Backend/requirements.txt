@@ -1,5 +1,7 @@
+anthropic==0.84.0
 asgiref==3.12.1
 Django==6.0.7
 pydantic==2.13.4
+python-dotenv==1.2.2
 sqlparse==0.5.5
 tzdata==2026.3

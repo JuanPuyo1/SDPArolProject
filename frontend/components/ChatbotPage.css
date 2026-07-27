@@ -26,6 +26,12 @@
   color: var(--text);
 }
 
+.chatbot-page__error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #c0392b;
+}
+
 .chatbot-page__messages {
   flex: 1;
   display: flex;

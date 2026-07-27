@@ -10,10 +10,16 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Repo-root .env (SDPProject/.env) — shared with frontend tooling when present.
+load_dotenv(BASE_DIR.parent / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -132,3 +138,10 @@ STATIC_URL = 'static/'
 # MCP debug HTTP invoke (POST /api/mcp/tools/<name>/invoke/).
 # Keep True for local/partner integration; set False in production.
 MCP_HTTP_INVOKE_ENABLED = DEBUG
+
+# Orchestrator backend: stub (local/CI) | langgraph (partner graph).
+ORCHESTRATOR_BACKEND = os.getenv('ORCHESTRATOR_BACKEND', 'stub')
+
+# Stub orchestrator LLM (optional — canned fallback when unset).
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
+ANTHROPIC_MODEL = os.getenv('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')

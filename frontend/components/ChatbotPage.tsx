@@ -1,30 +1,49 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SyntheticEvent } from 'react'
 import ChatMessage from './ChatMessage'
 import type { ChatAttachment, ChatMessageData } from './ChatMessage'
+import { useAuth } from '../src/hooks/useAuth'
+import { useDefaultMachine } from '../src/hooks/useMachine'
+import { useChatStream } from '../src/hooks/useChat'
 import './ChatbotPage.css'
 
 const ACCEPTED_TYPES = 'image/*,.txt,.text/plain,.pdf,application/pdf'
-
-const initialMessages: ChatMessageData[] = [
-  {
-    id: 'welcome',
-    role: 'assistant',
-    text: "Hi, I'm the AROL assistant for the CLOSYS EAGLE VP (A3279). Ask me about setup, troubleshooting or maintenance, or attach a photo, log file or PDF for more context.",
-    attachments: [],
-  },
-]
 
 function isImage(file: File) {
   return file.type.startsWith('image/')
 }
 
+function buildWelcomeMessage(model: string, serial: string): ChatMessageData {
+  return {
+    id: 'welcome',
+    role: 'assistant',
+    text: `Hi, I'm the AROL assistant for the ${model} (${serial}). Ask me about setup, troubleshooting or maintenance — I'll look up your machine via MCP tools and stream a reply.`,
+    attachments: [],
+  }
+}
+
 export default function ChatbotPage() {
-  const [messages, setMessages] = useState<ChatMessageData[]>(initialMessages)
+  const { user } = useAuth()
+  const { machine, loading: machineLoading, error: machineError } = useDefaultMachine()
+  const serial = machine?.serialNumber ?? null
+  const modelLabel = machine?.model ?? machine?.fullModel ?? 'your machine'
+
+  const { isStreaming, error: chatError, sendMessage } = useChatStream({
+    machineSerial: serial,
+  })
+
+  const [messages, setMessages] = useState<ChatMessageData[]>([])
   const [draftText, setDraftText] = useState('')
   const [draftAttachments, setDraftAttachments] = useState<ChatAttachment[]>([])
-  const [isThinking, setIsThinking] = useState(false)
+  const welcomeSerialRef = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!serial) return
+    if (welcomeSerialRef.current === serial) return
+    welcomeSerialRef.current = serial
+    setMessages([buildWelcomeMessage(modelLabel, serial)])
+  }, [serial, modelLabel])
 
   function handleFilesSelected(fileList: FileList | null) {
     if (!fileList) return
@@ -45,51 +64,88 @@ export default function ChatbotPage() {
     })
   }
 
-  function handleSubmit(event: SyntheticEvent) {
+  async function handleSubmit(event: SyntheticEvent) {
     event.preventDefault()
     if (!draftText.trim() && draftAttachments.length === 0) return
+    if (!serial || isStreaming) return
 
+    const userText = draftText.trim()
     const userMessage: ChatMessageData = {
       id: `msg-${Date.now()}`,
       role: 'user',
-      text: draftText.trim(),
+      text: userText,
       attachments: draftAttachments,
     }
-    setMessages((prev) => [...prev, userMessage])
+
+    const assistantId = `reply-${Date.now()}`
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+      { id: assistantId, role: 'assistant', text: '', attachments: [] },
+    ])
     setDraftText('')
     setDraftAttachments([])
-    setIsThinking(true)
 
-    // Placeholder reply: the orchestrator/AI agents backend is not wired up yet in this concept.
-    window.setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `reply-${Date.now()}`,
-          role: 'assistant',
-          text:
-            userMessage.attachments.length > 0
-              ? "Thanks, I've received your attachment. Once the AI agents backend is connected I'll analyze it and reply with guidance."
-              : "This is a front-end concept, so I can't reason about that yet — the orchestrator and AI agents backend will plug in here.",
-          attachments: [],
+    const prompt =
+      userText ||
+      (userMessage.attachments.length > 0
+        ? `Please review my attachment: ${userMessage.attachments.map((a) => a.file.name).join(', ')}`
+        : '')
+
+    try {
+      const reply = await sendMessage(prompt, {
+        onToken: (_token, fullText) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, text: fullText } : m)),
+          )
         },
-      ])
-      setIsThinking(false)
-    }, 700)
+      })
+      if (!reply) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, text: 'No response received from the orchestrator.' }
+              : m,
+          ),
+        )
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Chat request failed.'
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? { ...m, text: message } : m)),
+      )
+    }
   }
+
+  const disabled = machineLoading || !serial || isStreaming
+  const statusError = machineError || chatError
 
   return (
     <div className="chatbot-page">
       <div className="chatbot-page__header">
         <h1>AI Chatbot</h1>
-        <p>Troubleshooting support for the CLOSYS EAGLE VP &middot; Serial A3279</p>
+        <p>
+          Troubleshooting support
+          {serial ? (
+            <>
+              {' '}
+              for {modelLabel} &middot; Serial {serial}
+            </>
+          ) : machineLoading ? (
+            ' — loading machine context…'
+          ) : (
+            ' — no machine assigned to your account'
+          )}
+          {user ? <> &middot; {user.username}</> : null}
+        </p>
+        {statusError && <p className="chatbot-page__error">{statusError}</p>}
       </div>
 
       <div className="chatbot-page__messages">
         {messages.map((message) => (
           <ChatMessage key={message.id} message={message} />
         ))}
-        {isThinking && (
+        {isStreaming && (
           <div className="chatbot-page__thinking">
             <span className="dot" />
             <span className="dot" />
@@ -131,6 +187,7 @@ export default function ChatbotPage() {
             onClick={() => fileInputRef.current?.click()}
             aria-label="Attach a file"
             title="Attach image, .txt or .pdf"
+            disabled={disabled}
           >
             📎
           </button>
@@ -144,18 +201,23 @@ export default function ChatbotPage() {
           />
           <textarea
             className="chatbot-page__textarea"
-            placeholder="Ask about setup, maintenance or troubleshooting..."
+            placeholder={
+              serial
+                ? 'Ask about setup, maintenance or troubleshooting…'
+                : 'Assign a machine to your account to start chatting.'
+            }
             value={draftText}
             onChange={(e) => setDraftText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
-                handleSubmit(e)
+                void handleSubmit(e)
               }
             }}
             rows={1}
+            disabled={disabled}
           />
-          <button type="submit" className="btn btn--primary">
+          <button type="submit" className="btn btn--primary" disabled={disabled}>
             Send
           </button>
         </div>
