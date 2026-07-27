@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Protocol, runtime_checkable
 
 
-ChunkType = Literal['token', 'tool', 'done', 'error']
+ChunkType = Literal['token', 'tool', 'step', 'done', 'error']
 
 
 @dataclass(frozen=True)

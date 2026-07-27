@@ -1,4 +1,4 @@
-export type ChatChunkType = 'token' | 'tool' | 'done' | 'error'
+export type ChatChunkType = 'token' | 'tool' | 'step' | 'done' | 'error'
 
 export type ChatChunk = {
   type: ChatChunkType
@@ -11,6 +11,61 @@ export type ChatChunk = {
 export type ChatRequest = {
   message: string
   machine_serial?: string
+}
+
+export type ThinkingStepStatus = 'running' | 'done' | 'error'
+
+export type ThinkingStep = {
+  id: string
+  label: string
+  status: ThinkingStepStatus
+  tool?: string
+  detail?: string
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  get_machine_info: 'Machine context loaded',
+  search_error_codes: 'Error code lookup complete',
+  search_manual: 'Manual search complete',
+  query_telemetry: 'Telemetry query complete',
+  create_ticket: 'Support ticket created',
+  list_spare_parts: 'Spare parts lookup complete',
+}
+
+export function toolStepLabel(tool: string): string {
+  return TOOL_LABELS[tool] ?? `${tool} complete`
+}
+
+export function toolStepDetail(tool: string, data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return undefined
+  const envelope = data as { status?: string; data?: Record<string, unknown>; message?: string }
+
+  if (envelope.status === 'error') {
+    return envelope.message
+  }
+
+  const payload = envelope.data
+  if (!payload) return undefined
+
+  if (tool === 'create_ticket' && typeof payload.ticket_id === 'string') {
+    return `Ticket ${payload.ticket_id} · ${payload.priority ?? 'medium'} priority`
+  }
+
+  if (tool === 'search_error_codes' && Array.isArray(payload.hits)) {
+    const codes = payload.hits
+      .map((hit) => (typeof hit === 'object' && hit && 'code' in hit ? String(hit.code) : null))
+      .filter(Boolean)
+    if (codes.length) return `Matched: ${codes.join(', ')}`
+  }
+
+  if (tool === 'get_machine_info' && payload.machine && typeof payload.machine === 'object') {
+    const machine = payload.machine as Record<string, unknown>
+    const identification = machine.identification as Record<string, unknown> | undefined
+    const model = identification?.model ?? machine.model
+    if (typeof model === 'string') return model
+  }
+
+  return undefined
 }
 
 function getCookie(name: string): string | null {

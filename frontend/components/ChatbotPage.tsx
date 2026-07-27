@@ -17,7 +17,7 @@ function buildWelcomeMessage(model: string, serial: string): ChatMessageData {
   return {
     id: 'welcome',
     role: 'assistant',
-    text: `Hi, I'm the AROL assistant for the ${model} (${serial}). Ask me about setup, troubleshooting or maintenance — I'll look up your machine via MCP tools and stream a reply.`,
+    text: `Hi, I'm the Arol Troubleshooting & Service assistant for the ${model} (${serial}). Ask about alarms, error codes, or maintenance — I'll call MCP tools, show each step, and stream a reply.`,
     attachments: [],
   }
 }
@@ -81,7 +81,7 @@ export default function ChatbotPage() {
     setMessages((prev) => [
       ...prev,
       userMessage,
-      { id: assistantId, role: 'assistant', text: '', attachments: [] },
+      { id: assistantId, role: 'assistant', text: '', attachments: [], thinkingSteps: [] },
     ])
     setDraftText('')
     setDraftAttachments([])
@@ -97,6 +97,11 @@ export default function ChatbotPage() {
         onToken: (_token, fullText) => {
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantId ? { ...m, text: fullText } : m)),
+          )
+        },
+        onThinkingSteps: (steps) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, thinkingSteps: steps } : m)),
           )
         },
       })
@@ -125,7 +130,7 @@ export default function ChatbotPage() {
       <div className="chatbot-page__header">
         <h1>AI Chatbot</h1>
         <p>
-          Troubleshooting support
+          Troubleshooting &amp; Service agent
           {serial ? (
             <>
               {' '}
@@ -145,13 +150,6 @@ export default function ChatbotPage() {
         {messages.map((message) => (
           <ChatMessage key={message.id} message={message} />
         ))}
-        {isStreaming && (
-          <div className="chatbot-page__thinking">
-            <span className="dot" />
-            <span className="dot" />
-            <span className="dot" />
-          </div>
-        )}
       </div>
 
       <form className="chatbot-page__composer" onSubmit={handleSubmit}>

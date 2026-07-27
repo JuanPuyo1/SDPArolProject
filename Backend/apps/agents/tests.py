@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 
 from apps.agents.stub_orchestrator import StubOrchestrator
+from apps.agents.troubleshooting_service_agent import AgentIntent, classify_intent
 from apps.machines.models import Machine
 
 
@@ -51,12 +52,47 @@ class StubOrchestratorTests(TestCase):
         self.assertIn('token', types)
         self.assertEqual(types[-1], 'done')
 
+        types = [c.type for c in chunks]
+        self.assertIn('step', types)
+
         tool_names = [c.tool for c in chunks if c.type == 'tool']
         self.assertIn('get_machine_info', tool_names)
         self.assertIn('search_error_codes', tool_names)
+        self.assertIn('search_manual', tool_names)
 
         text = ''.join(c.content for c in chunks if c.type == 'token')
         self.assertIn('A3279', text)
+        self.assertIn('troubleshooting_service', text)
+
+    @override_settings(ANTHROPIC_API_KEY='')
+    def test_service_intent_opens_ticket(self) -> None:
+        orchestrator = StubOrchestrator()
+        chunks = list(
+            orchestrator.run(
+                customer_id='demo',
+                machine_serial='A3279',
+                message='Please send a technician — machine keeps stopping',
+            ),
+        )
+
+        tool_names = [c.tool for c in chunks if c.type == 'tool']
+        self.assertIn('create_ticket', tool_names)
+
+        text = ''.join(c.content for c in chunks if c.type == 'token')
+        self.assertIn('TKT-', text)
+
+
+class TroubleshootingServiceAgentTests(TestCase):
+    def test_classify_intent(self) -> None:
+        self.assertEqual(
+            classify_intent('Alarm E042 star-wheel jam'),
+            AgentIntent.TROUBLESHOOTING,
+        )
+        self.assertEqual(
+            classify_intent('Send a technician for field service'),
+            AgentIntent.SERVICE,
+        )
+        self.assertEqual(classify_intent('What machine is this?'), AgentIntent.GENERAL)
 
 
 class ChatViewTests(TestCase):
@@ -109,4 +145,5 @@ class ChatViewTests(TestCase):
         body = b''.join(response.streaming_content).decode()
         self.assertIn('"type": "token"', body)
         self.assertIn('"type": "tool"', body)
+        self.assertIn('"type": "step"', body)
         self.assertIn('"type": "done"', body)

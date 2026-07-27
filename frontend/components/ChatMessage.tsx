@@ -1,3 +1,4 @@
+import type { ThinkingStep } from '../src/api/chat'
 import './ChatMessage.css'
 
 export interface ChatAttachment {
@@ -11,6 +12,7 @@ export interface ChatMessageData {
   role: 'user' | 'assistant'
   text: string
   attachments: ChatAttachment[]
+  thinkingSteps?: ThinkingStep[]
 }
 
 function formatSize(bytes: number) {
@@ -19,11 +21,40 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function ThinkingChain({ steps }: { steps: ThinkingStep[] }) {
+  if (steps.length === 0) return null
+
+  return (
+    <div className="thinking-chain" aria-label="Agent activity">
+      <div className="thinking-chain__title">Agent activity</div>
+      <ol className="thinking-chain__list">
+        {steps.map((step) => (
+          <li
+            key={step.id}
+            className={`thinking-chain__item thinking-chain__item--${step.status}`}
+          >
+            <span className="thinking-chain__indicator" aria-hidden="true" />
+            <div className="thinking-chain__content">
+              <span className="thinking-chain__label">{step.label}</span>
+              {step.detail && <span className="thinking-chain__detail">{step.detail}</span>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
 export default function ChatMessage({ message }: { message: ChatMessageData }) {
+  const showThinking = message.role === 'assistant' && (message.thinkingSteps?.length ?? 0) > 0
+
   return (
     <div className={`chat-message chat-message--${message.role}`}>
       <div className="chat-message__avatar">{message.role === 'user' ? 'You' : 'AI'}</div>
       <div className="chat-message__body">
+        {showThinking && message.thinkingSteps && (
+          <ThinkingChain steps={message.thinkingSteps} />
+        )}
         {message.attachments.length > 0 && (
           <div className="chat-message__attachments">
             {message.attachments.map((att) =>
