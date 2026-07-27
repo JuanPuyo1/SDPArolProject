@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('apps.authentication.urls')),
     path('api/machines/', include('apps.machines.urls')),
+    path('api/mcp/', include('apps.mcp_server.urls')),
 ]

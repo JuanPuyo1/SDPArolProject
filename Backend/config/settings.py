@@ -128,3 +128,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# MCP debug HTTP invoke (POST /api/mcp/tools/<name>/invoke/).
+# Keep True for local/partner integration; set False in production.
+MCP_HTTP_INVOKE_ENABLED = DEBUG
