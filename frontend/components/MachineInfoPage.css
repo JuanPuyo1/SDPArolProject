@@ -21,6 +21,7 @@
   border: 2px solid transparent;
   cursor: pointer;
   transition: opacity 0.2s, background 0.2s, border-color 0.2s;
+  min-height: 44px;
 }
 
 .btn--primary {
@@ -263,5 +264,64 @@
   }
   .machine-hero__title {
     font-size: 32px;
+  }
+}
+
+@media (max-width: 640px) {
+  .machine-page {
+    padding: 16px;
+    gap: 20px;
+  }
+
+  .machine-hero {
+    padding: 20px 16px;
+    border-radius: 12px;
+  }
+
+  .machine-hero__title {
+    font-size: 26px;
+  }
+
+  .machine-hero__subtitle {
+    font-size: 14px;
+  }
+
+  .machine-hero__actions {
+    flex-direction: column;
+  }
+
+  .machine-hero__actions .btn {
+    width: 100%;
+  }
+
+  .machine-stats {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .stat-card {
+    padding: 14px 16px;
+  }
+
+  .stat-card__value {
+    font-size: 20px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .def-list div {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .def-list dd {
+    text-align: left;
+  }
+
+  .unit-card {
+    padding: 12px;
   }
 }

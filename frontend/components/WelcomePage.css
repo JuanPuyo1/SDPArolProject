@@ -1,0 +1,209 @@
+.welcome-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--surface);
+}
+
+.welcome-page__loading {
+  margin: auto;
+  padding: 24px;
+  color: var(--text);
+}
+
+.welcome-page--loading {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 28px 20px 24px;
+  background: linear-gradient(145deg, var(--arol-navy) 0%, var(--arol-navy-light) 100%);
+  color: #fff;
+}
+
+.welcome-hero__brand {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.welcome-hero__mark {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.welcome-hero__product {
+  font-size: 13px;
+  color: var(--arol-teal);
+}
+
+.welcome-hero__title {
+  font-size: clamp(1.75rem, 7vw, 2.75rem);
+  line-height: 1.15;
+  margin: 0;
+  color: #fff;
+  max-width: 20ch;
+}
+
+.welcome-hero__lead {
+  font-size: 1rem;
+  line-height: 1.55;
+  color: #d7dce3;
+  max-width: 40ch;
+}
+
+.welcome-hero__features {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: #eef2f6;
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.welcome-login {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px 16px 32px;
+}
+
+.welcome-login__card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 20px;
+  box-shadow: var(--shadow);
+}
+
+.welcome-login__eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--arol-teal-dark);
+  margin-bottom: 8px;
+}
+
+.welcome-login__title {
+  font-size: 1.5rem;
+  margin: 0 0 8px;
+}
+
+.welcome-login__subtitle {
+  color: var(--text);
+  margin-bottom: 20px;
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.welcome-login__footer {
+  margin-top: 16px;
+  font-size: 0.875rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.welcome-login .auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.welcome-login .auth-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.welcome-login .auth-form__field input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 16px;
+  min-height: 48px;
+}
+
+.welcome-login .auth-form__field input:focus {
+  outline: 2px solid rgba(20, 163, 163, 0.35);
+  border-color: var(--arol-teal);
+}
+
+.welcome-login .auth-form__error {
+  color: #b42318;
+  font-size: 14px;
+}
+
+.welcome-login .auth-form__submit {
+  width: 100%;
+  margin-top: 4px;
+  min-height: 48px;
+}
+
+@media (min-width: 768px) {
+  .welcome-page {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    min-height: 100dvh;
+  }
+
+  .welcome-hero {
+    padding: 48px 40px;
+    gap: 20px;
+  }
+
+  .welcome-hero__mark {
+    font-size: 22px;
+  }
+
+  .welcome-hero__product {
+    font-size: 14px;
+  }
+
+  .welcome-hero__lead {
+    font-size: 18px;
+  }
+
+  .welcome-hero__features {
+    font-size: 1rem;
+  }
+
+  .welcome-login {
+    align-items: center;
+    padding: 32px 24px;
+  }
+
+  .welcome-login__card {
+    padding: 32px;
+  }
+
+  .welcome-login__title {
+    font-size: 28px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .welcome-hero {
+    padding: 48px 56px;
+  }
+
+  .welcome-hero__title {
+    max-width: 14ch;
+  }
+}

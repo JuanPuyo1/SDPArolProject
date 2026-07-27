@@ -1,23 +1,62 @@
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, Navigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import MachineInfoPage from '../components/MachineInfoPage'
 import ManualPage from '../components/ManualPage'
 import ChatbotPage from '../components/ChatbotPage'
+import WelcomePage from '../components/WelcomePage'
+import ProfilePage from '../components/ProfilePage'
+import ProtectedRoute from '../components/ProtectedRoute'
+import { useAuth } from './hooks/useAuth'
 import './App.css'
 
-function App() {
+function AppShell() {
+  const { user, loading } = useAuth()
+
   return (
     <>
-      <NavBar />
+      {!loading && user && <NavBar />}
       <main className="app-main">
         <Routes>
-          <Route path="/" element={<MachineInfoPage />} />
-          <Route path="/manual" element={<ManualPage />} />
-          <Route path="/chatbot" element={<ChatbotPage />} />
+          <Route path="/" element={<WelcomePage />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
+          <Route
+            path="/machine"
+            element={
+              <ProtectedRoute>
+                <MachineInfoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/manual"
+            element={
+              <ProtectedRoute>
+                <ManualPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chatbot"
+            element={
+              <ProtectedRoute>
+                <ChatbotPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </main>
     </>
   )
 }
 
-export default App
+export default function App() {
+  return <AppShell />
+}

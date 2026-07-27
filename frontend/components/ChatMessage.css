@@ -102,3 +102,36 @@
   font-size: 12px;
   color: var(--text);
 }
+
+@media (max-width: 640px) {
+  .chat-message {
+    max-width: 100%;
+    gap: 8px;
+  }
+
+  .chat-message__avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+  }
+
+  .chat-message__body {
+    padding: 10px 12px;
+  }
+
+  .chat-message__text {
+    font-size: 14px;
+  }
+
+  .chat-attachment__image {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .chat-attachment__file {
+    min-width: 0;
+    width: 100%;
+  }
+}

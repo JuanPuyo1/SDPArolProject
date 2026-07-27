@@ -1,0 +1,152 @@
+.profile-page {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 32px;
+  max-width: 980px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.profile-hero__eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--arol-teal-dark);
+  margin-bottom: 8px;
+}
+
+.profile-hero__title {
+  font-size: 40px;
+  margin: 0 0 8px;
+}
+
+.profile-hero__subtitle {
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.profile-hero__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 24px;
+}
+
+@media (max-width: 820px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.panel__title {
+  margin-bottom: 16px;
+}
+
+.profile-dl {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+}
+
+.profile-dl div {
+  display: grid;
+  gap: 4px;
+}
+
+.profile-dl dt {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.profile-dl dd {
+  margin: 0;
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profile-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.profile-form__field input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.profile-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.profile-form__message {
+  color: var(--arol-teal-dark);
+  font-size: 14px;
+}
+
+.profile-form__error {
+  color: #b42318;
+  font-size: 14px;
+}
+
+.profile-page__back {
+  color: var(--arol-teal-dark);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.profile-page__back:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .profile-page {
+    padding: 16px;
+    gap: 20px;
+  }
+
+  .profile-hero__title {
+    font-size: 28px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .profile-form__actions {
+    flex-direction: column;
+  }
+
+  .profile-form__actions .btn {
+    width: 100%;
+  }
+}

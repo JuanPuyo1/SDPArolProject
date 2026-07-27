@@ -47,6 +47,20 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+input,
+textarea,
+select {
+  font-size: 16px;
 }
 
 * {
@@ -67,6 +81,11 @@ h1 {
   @media (max-width: 1024px) {
     font-size: 36px;
     margin: 20px 0;
+  }
+  @media (max-width: 640px) {
+    font-size: 28px;
+    letter-spacing: -0.5px;
+    margin: 16px 0;
   }
 }
 h2 {

@@ -172,3 +172,37 @@
 .draft-attachment__remove:hover {
   color: var(--text-h);
 }
+
+@media (max-width: 640px) {
+  .chatbot-page {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .chatbot-page__header h1 {
+    font-size: 20px;
+  }
+
+  .chatbot-page__messages {
+    min-height: 45vh;
+    padding: 12px;
+  }
+
+  .chatbot-page__thinking {
+    padding-left: 0;
+  }
+
+  .chatbot-page__composer {
+    padding: 8px;
+  }
+
+  .attach-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chatbot-page__textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
