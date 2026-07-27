@@ -1,0 +1,26 @@
+# Cursor Rules for Arol SpA MCP & Agent Engine
+
+## Role & Goal
+You are an expert AI Software Engineer assisting Esteban in building the **MCP Server** and **Troubleshooting & Service Agent** for Arol SpA's Customer Platform.
+
+## Architectural Directives
+1. **Separation of Concerns**:
+   - `frontend/`: Pure React client. Renders chats, manuals, and ticket interfaces.
+   - `backend/apps/mcp_server/`: Pure MCP tool definition and execution layer.
+   - `backend/apps/agents/`: Agent orchestration, prompt engineering, and tool execution loops.
+2. **MCP First Architecture**:
+   - Never write direct database queries inside agent logic or prompt strings.
+   - Every external operation (Vector Search, Database Lookup, Ticket Creation) MUST be wrapped as an MCP Tool with explicit `Pydantic` schema definitions.
+3. **Security & Scoping**:
+   - All tool calls MUST receive and validate `customer_id` and `machine_serial`.
+   - Never allow an agent to query data across tenant boundaries.
+
+## Code Conventions
+- **Python**: PEP8 compliant, explicit type annotations, async/await for network/DB calls, `dataclasses` or `pydantic` models for data transfer.
+- **Django**: Standard Django ORM with `pgvector` for embedding storage. Clean URL routing in `urls.py`.
+- **Error Handling**: Every MCP tool must catch exceptions cleanly and return structured JSON error payloads (`{"status": "error", "message": "..."}`) rather than crashing the agent loop.
+
+## Focus Areas for Code Generation
+When asked to write code:
+- Ensure token efficiency: Use concise system prompts and stream responses.
+- Include structured logging: Log tool calls, latency, and input parameters.
