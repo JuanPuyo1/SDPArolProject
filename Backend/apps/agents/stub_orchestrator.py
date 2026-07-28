@@ -28,3 +28,4 @@ class StubOrchestrator:
             message=message,
             attachments=attachments,
         )
+        yield OrchestratorChunk(type='done')

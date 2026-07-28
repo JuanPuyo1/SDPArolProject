@@ -30,6 +30,9 @@ const TOOL_LABELS: Record<string, string> = {
   query_telemetry: 'Telemetry query complete',
   create_ticket: 'Support ticket created',
   list_spare_parts: 'Spare parts lookup complete',
+  get_quote_history: 'Quote history loaded',
+  get_order_status: 'Order status loaded',
+  get_contract_info: 'Contract details loaded',
 }
 
 export function toolStepLabel(tool: string): string {
@@ -63,6 +66,18 @@ export function toolStepDetail(tool: string, data: unknown): string | undefined 
     const identification = machine.identification as Record<string, unknown> | undefined
     const model = identification?.model ?? machine.model
     if (typeof model === 'string') return model
+  }
+
+  if (tool === 'get_quote_history' && Array.isArray(payload.revisions)) {
+    return `${payload.revisions.length} revision${payload.revisions.length === 1 ? '' : 's'} found`
+  }
+
+  if (tool === 'get_order_status' && Array.isArray(payload.orders)) {
+    return `${payload.orders.length} order${payload.orders.length === 1 ? '' : 's'} found`
+  }
+
+  if (tool === 'get_contract_info' && Array.isArray(payload.contracts)) {
+    return `${payload.contracts.length} contract${payload.contracts.length === 1 ? '' : 's'} found`
   }
 
   return undefined

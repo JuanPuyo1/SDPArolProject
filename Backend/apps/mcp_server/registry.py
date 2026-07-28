@@ -24,6 +24,14 @@ from apps.mcp_server.schemas.machine import (
     ListCustomerMachinesOutput,
 )
 from apps.mcp_server.schemas.manual import SearchManualInput, SearchManualOutput
+from apps.mcp_server.schemas.orders import (
+    ContractInfoInput,
+    ContractInfoOutput,
+    OrderStatusInput,
+    OrderStatusOutput,
+    QuoteHistoryInput,
+    QuoteHistoryOutput,
+)
 from apps.mcp_server.schemas.telemetry import QueryTelemetryInput, QueryTelemetryOutput
 from apps.mcp_server.schemas.ticket import CreateTicketInput, CreateTicketOutput
 from apps.mcp_server.schemas.troubleshooting import (
@@ -34,7 +42,10 @@ from apps.mcp_server.scoping import ScopeError
 from apps.mcp_server.tools import (
     create_ticket,
     echo,
+    get_contract_info,
     get_machine_info,
+    get_order_status,
+    get_quote_history,
     list_customer_machines,
     list_spare_parts,
     query_telemetry,
@@ -143,6 +154,48 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=CreateTicketOutput,
         handler=create_ticket,
         agent='service',
+        status='stub',
+        requires_machine_scope=True,
+    ),
+    'get_quote_history': ToolSpec(
+        name='get_quote_history',
+        description=(
+            'Look up quote history (all revisions, oldest to newest) for the '
+            'scoped customer/machine, optionally filtered to one quote_id. Use '
+            'for questions about quote status, price changes across revisions, '
+            'or whether a quote was accepted/rejected.'
+        ),
+        input_model=QuoteHistoryInput,
+        output_model=QuoteHistoryOutput,
+        handler=get_quote_history,
+        agent='business',
+        status='stub',
+        requires_machine_scope=True,
+    ),
+    'get_order_status': ToolSpec(
+        name='get_order_status',
+        description=(
+            'Look up confirmed order status and amount for the scoped '
+            'customer/machine. Orders may reference a quote_id if they '
+            'originated from an accepted quote.'
+        ),
+        input_model=OrderStatusInput,
+        output_model=OrderStatusOutput,
+        handler=get_order_status,
+        agent='business',
+        status='stub',
+        requires_machine_scope=True,
+    ),
+    'get_contract_info': ToolSpec(
+        name='get_contract_info',
+        description=(
+            'Look up warranty/maintenance contract details (type, start/end '
+            'dates) for the scoped customer/machine.'
+        ),
+        input_model=ContractInfoInput,
+        output_model=ContractInfoOutput,
+        handler=get_contract_info,
+        agent='business',
         status='stub',
         requires_machine_scope=True,
     ),

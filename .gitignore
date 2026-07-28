@@ -1,6 +1,7 @@
 # Local datasets
 Data/
 Data.zip
+*.csv
 
 # Python
 __pycache__/
@@ -8,6 +9,8 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+*venv/
+arol_venv/
 
 # Django
 *.sqlite3

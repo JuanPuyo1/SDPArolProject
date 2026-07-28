@@ -2,7 +2,10 @@
 
 from .create_ticket import create_ticket
 from .echo import echo
+from .get_contract_info import get_contract_info
 from .get_machine_info import get_machine_info
+from .get_order_status import get_order_status
+from .get_quote_history import get_quote_history
 from .list_customer_machines import list_customer_machines
 from .list_spare_parts import list_spare_parts
 from .query_telemetry import query_telemetry
@@ -18,4 +21,7 @@ __all__ = [
     'create_ticket',
     'search_error_codes',
     'list_spare_parts',
+    'get_quote_history',
+    'get_order_status',
+    'get_contract_info',
 ]

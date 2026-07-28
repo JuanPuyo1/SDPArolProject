@@ -79,6 +79,39 @@ class McpRegistryTests(TestCase):
         self.assertEqual(result['status'], 'error')
         self.assertEqual(result['code'], 'UNKNOWN_TOOL')
 
+    def test_get_quote_history_ok(self) -> None:
+        result = registry.invoke(
+            'get_quote_history',
+            {'customer_id': 'demo', 'machine_serial': 'A3279'},
+        )
+        self.assertEqual(result['status'], 'ok')
+        self.assertTrue(result['data']['stub'])
+        self.assertTrue(len(result['data']['revisions']) > 0)
+
+    def test_get_quote_history_forbidden_cross_tenant(self) -> None:
+        result = registry.invoke(
+            'get_quote_history',
+            {'customer_id': 'other', 'machine_serial': 'A3279'},
+        )
+        self.assertEqual(result['status'], 'error')
+        self.assertEqual(result['code'], 'FORBIDDEN')
+
+    def test_get_order_status_ok(self) -> None:
+        result = registry.invoke(
+            'get_order_status',
+            {'customer_id': 'demo', 'machine_serial': 'A3279'},
+        )
+        self.assertEqual(result['status'], 'ok')
+        self.assertTrue(len(result['data']['orders']) > 0)
+
+    def test_get_contract_info_ok(self) -> None:
+        result = registry.invoke(
+            'get_contract_info',
+            {'customer_id': 'demo', 'machine_serial': 'A3279'},
+        )
+        self.assertEqual(result['status'], 'ok')
+        self.assertTrue(len(result['data']['contracts']) > 0)
+
     @override_settings(MCP_HTTP_INVOKE_ENABLED=True)
     def test_http_list_and_invoke(self) -> None:
         client = Client()
