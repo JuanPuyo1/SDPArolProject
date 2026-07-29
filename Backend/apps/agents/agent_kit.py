@@ -70,8 +70,18 @@ def run_tool_calling_loop(
     *,
     system_prompt: str,
     user_message: str,
+    history: list[BaseMessage] | None = None,
+    new_messages_sink: list[BaseMessage] | None = None,
 ) -> Iterator[OrchestratorChunk]:
     """Stream Claude turns until it stops calling tools.
+
+    `history` is prior conversation turns (Human/AI/Tool messages) for this
+    thread, loaded by the caller from persisted state -- the system prompt is
+    NOT part of it, since it's static per agent and re-added fresh every call
+    rather than stored. If `new_messages_sink` is given, every message this
+    turn adds (the new HumanMessage plus any ToolMessages/AIMessages) is
+    appended to it once the turn finishes, so the caller can persist just the
+    delta back into shared state instead of the whole reconstructed history.
 
     Each turn is streamed via llm.stream() and buffered locally rather than
     forwarded live. Once a turn completes:
@@ -87,8 +97,10 @@ def run_tool_calling_loop(
     tools_by_name = {t.tool.name: t for t in tools}
     messages: list[BaseMessage] = [
         SystemMessage(content=system_prompt),
+        *(history or []),
         HumanMessage(content=user_message),
     ]
+    turn_start = len(messages) - 1  # first message this turn added (the HumanMessage)
 
     while True:
         accumulated = None
@@ -103,6 +115,8 @@ def run_tool_calling_loop(
         if not accumulated.tool_calls:
             for piece in buffered_text:
                 yield OrchestratorChunk(type='token', content=piece)
+            if new_messages_sink is not None:
+                new_messages_sink.extend(messages[turn_start:])
             return
 
         for call in accumulated.tool_calls:

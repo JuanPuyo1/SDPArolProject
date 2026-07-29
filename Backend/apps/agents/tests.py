@@ -94,6 +94,7 @@ class StubOrchestratorTests(TestCase):
                     customer_id='demo',
                     machine_serial='A3279',
                     message='Alarm E042 star-wheel jam',
+                    session_id='session-1',
                 ),
             )
 
@@ -139,6 +140,7 @@ class StubOrchestratorTests(TestCase):
                     customer_id='demo',
                     machine_serial='A3279',
                     message='Please send a technician — machine keeps stopping',
+                    session_id='session-1',
                 ),
             )
 
@@ -160,6 +162,7 @@ class StubOrchestratorTests(TestCase):
                 customer_id='someone-else',
                 machine_serial='A3279',
                 message='Alarm E042',
+                session_id='session-1',
             ),
         )
         self.assertEqual([c.type for c in chunks], ['step', 'tool', 'error', 'done'])
@@ -208,6 +211,7 @@ class LangGraphOrchestratorTests(TransactionTestCase):
                     customer_id='demo',
                     machine_serial='A3279',
                     message='What is the status of my order?',
+                    session_id='session-1',
                 ),
             )
 
@@ -231,6 +235,7 @@ class LangGraphOrchestratorTests(TransactionTestCase):
                     customer_id='demo',
                     machine_serial='A3279',
                     message='Alarm E042 star-wheel jam',
+                    session_id='session-1',
                 ),
             )
 
@@ -240,6 +245,58 @@ class LangGraphOrchestratorTests(TransactionTestCase):
         tool_names = [c.tool for c in chunks if c.type == 'tool']
         self.assertIn('search_error_codes', tool_names)
         self.assertEqual(chunks[-1].type, 'done')
+
+    def test_second_turn_on_same_session_sees_first_turns_history(self) -> None:
+        """The book's Chapter 2 point: state must carry across turns, not be
+        discarded when a run() generator finishes. Here the *second* call's
+        scripted LLM never gets a tool_call turn -- if the graph's checkpointed
+        `messages` didn't include the first turn's exchange, the fake model
+        would still return exactly what we scripted (it doesn't read
+        messages), so the real assertion is on what we fed IT: intercept
+        llm.stream(messages) and check the first turn's Human/AI messages
+        are present on the second call.
+        """
+        seen_message_histories: list[list] = []
+
+        class _RecordingScriptedLLM(_ScriptedLLM):
+            def stream(self, messages):
+                seen_message_histories.append(list(messages))
+                yield from super().stream(messages)
+
+        llm = _RecordingScriptedLLM(
+            [
+                _tool_call_turn('search_error_codes', {'query': 'E042'}),
+                _text_turn('That alarm means a star-wheel jam.'),
+                _text_turn('Yes, clearing the jam and resetting the alarm should fix it.'),
+            ],
+        )
+        with patch('apps.agents.troubleshooting_service_agent.build_llm', return_value=llm):
+            list(
+                LangGraphOrchestrator().run(
+                    customer_id='demo',
+                    machine_serial='A3279',
+                    message='Alarm E042 star-wheel jam',
+                    session_id='session-continuity',
+                ),
+            )
+            list(
+                LangGraphOrchestrator().run(
+                    customer_id='demo',
+                    machine_serial='A3279',
+                    message='Will that actually fix it?',
+                    session_id='session-continuity',
+                ),
+            )
+
+        # Third llm.stream() call is the second turn's only round-trip
+        # (the scripted answer has no tool call). Its message list must
+        # contain the first turn's human message and final answer, proving
+        # history survived across the two separate run() calls.
+        second_turn_messages = seen_message_histories[2]
+        history_texts = [getattr(m, 'content', '') for m in second_turn_messages]
+        self.assertTrue(any('Alarm E042 star-wheel jam' in t for t in history_texts))
+        self.assertTrue(any('star-wheel jam' in t and 'That alarm means' in t for t in history_texts))
+        self.assertTrue(any('Will that actually fix it?' in t for t in history_texts))
 
 
 class ChatViewTests(TestCase):

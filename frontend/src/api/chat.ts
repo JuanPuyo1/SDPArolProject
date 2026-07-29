@@ -11,6 +11,7 @@ export type ChatChunk = {
 export type ChatRequest = {
   message: string
   machine_serial?: string
+  session_id?: string
 }
 
 export type ThinkingStepStatus = 'running' | 'done' | 'error'
@@ -110,6 +111,7 @@ export async function streamChat(
   handlers: {
     onChunk: (chunk: ChatChunk) => void
     onError?: (message: string) => void
+    onSessionId?: (sessionId: string) => void
   },
   signal?: AbortSignal,
 ): Promise<void> {
@@ -130,6 +132,11 @@ export async function streamChat(
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(data.error || `Chat request failed (${response.status})`)
+  }
+
+  const sessionId = response.headers.get('X-Session-Id')
+  if (sessionId) {
+    handlers.onSessionId?.(sessionId)
   }
 
   if (!response.body) {

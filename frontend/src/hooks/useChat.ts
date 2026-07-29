@@ -21,6 +21,7 @@ type UseChatStreamResult = {
   error: string | null
   sendMessage: (message: string, options?: SendMessageOptions) => Promise<string>
   abort: () => void
+  resetConversation: () => void
 }
 
 let stepCounter = 0
@@ -95,11 +96,19 @@ export function useChatStream({ machineSerial }: UseChatStreamOptions): UseChatS
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // Server-assigned conversation thread id. Sent back on every subsequent
+  // call so the agent resumes with prior turns instead of starting fresh;
+  // cleared by resetConversation() to start a brand-new thread.
+  const sessionIdRef = useRef<string | null>(null)
 
   const abort = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
     setIsStreaming(false)
+  }, [])
+
+  const resetConversation = useCallback(() => {
+    sessionIdRef.current = null
   }, [])
 
   const sendMessage = useCallback(
@@ -120,7 +129,11 @@ export function useChatStream({ machineSerial }: UseChatStreamOptions): UseChatS
 
       try {
         await streamChat(
-          { message, machine_serial: machineSerial },
+          {
+            message,
+            machine_serial: machineSerial,
+            session_id: sessionIdRef.current ?? undefined,
+          },
           {
             onChunk: (chunk: ChatChunk) => {
               if (chunk.type === 'token' && chunk.content) {
@@ -134,6 +147,9 @@ export function useChatStream({ machineSerial }: UseChatStreamOptions): UseChatS
               }
             },
             onError: (message) => setError(message),
+            onSessionId: (sessionId) => {
+              sessionIdRef.current = sessionId
+            },
           },
           controller.signal,
         )
@@ -161,5 +177,5 @@ export function useChatStream({ machineSerial }: UseChatStreamOptions): UseChatS
     [machineSerial],
   )
 
-  return { isStreaming, error, sendMessage, abort }
+  return { isStreaming, error, sendMessage, abort, resetConversation }
 }

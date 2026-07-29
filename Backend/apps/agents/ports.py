@@ -38,7 +38,13 @@ class OrchestratorPort(Protocol):
         customer_id: str,
         machine_serial: str,
         message: str,
+        session_id: str,
         attachments: list[ChatAttachmentRef] | None = None,
     ) -> Iterator[OrchestratorChunk]:
-        """Stream orchestrator output chunks for SSE adaptation in views."""
+        """Stream orchestrator output chunks for SSE adaptation in views.
+
+        `session_id` identifies the conversation thread: calling run() again
+        with the same session_id continues that conversation (backend-
+        dependent -- StubOrchestrator ignores it, LangGraphOrchestrator uses
+        it as the checkpointer thread_id)."""
         ...

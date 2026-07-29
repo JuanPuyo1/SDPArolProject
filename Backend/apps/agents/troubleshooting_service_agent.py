@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
+from langchain_core.messages import BaseMessage
 from langchain_core.tools import tool
 
 from apps.agents.agent_kit import AgentTool, build_llm, load_machine_context, run_tool_calling_loop
@@ -92,6 +93,8 @@ class TroubleshootingServiceAgent:
         machine_serial: str,
         message: str,
         attachments: list[ChatAttachmentRef] | None = None,
+        history: list[BaseMessage] | None = None,
+        new_messages_sink: list[BaseMessage] | None = None,
         llm=None,
     ) -> Iterator[OrchestratorChunk]:
         machine_ctx: list[dict] = []
@@ -119,4 +122,6 @@ class TroubleshootingServiceAgent:
             tools,
             system_prompt=SYSTEM_PROMPT,
             user_message=user_message,
+            history=history,
+            new_messages_sink=new_messages_sink,
         )
