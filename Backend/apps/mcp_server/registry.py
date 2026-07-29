@@ -102,8 +102,8 @@ _TOOLS: dict[str, ToolSpec] = {
         input_model=SearchManualInput,
         output_model=SearchManualOutput,
         handler=search_manual,
-        agent='manuals',
-        status='stub',
+        agent='shared',
+        status='ready',
         requires_machine_scope=True,
     ),
     'query_telemetry': ToolSpec(
@@ -133,7 +133,7 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=SearchErrorCodesOutput,
         handler=search_error_codes,
         agent='troubleshooting',
-        status='stub',
+        status='ready',
         requires_machine_scope=True,
     ),
     'create_ticket': ToolSpec(

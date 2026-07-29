@@ -1,7 +1,14 @@
-"""search_manual — RAG stub for Manuals Agent."""
+"""search_manual — RAG over the manuals Qdrant collection (Manuals Agent)."""
 
+from __future__ import annotations
+
+import logging
+
+from apps.mcp_server.rag_engine import search as rag_search
 from apps.mcp_server.schemas.manual import ManualHit, SearchManualInput, SearchManualOutput
 from apps.mcp_server.scoping import get_owned_machine
+
+log = logging.getLogger(__name__)
 
 
 def search_manual(params: SearchManualInput) -> SearchManualOutput:
@@ -9,18 +16,28 @@ def search_manual(params: SearchManualInput) -> SearchManualOutput:
         customer_id=params.customer_id,
         machine_serial=params.machine_serial,
     )
-    # Stub hit so orchestrators can exercise the contract before rag_engine lands.
+
+    raw_hits = rag_search.search_manuals(
+        query=params.query,
+        machine_model=machine.model,
+        top_k=params.top_k,
+    )
+
     hits = [
         ManualHit(
-            title=f'{machine.model} Use and Maintenance Manual',
-            section='Stub result',
-            excerpt=(
-                f'No vector index yet. Query was {params.query!r} for serial '
-                f'{machine.serial_number}. Wire rag_engine to return real passages.'
-            ),
-            page=None,
-            score=0.0,
-            source=machine.manual_url or None,
+            title=h.get('title') or f'{machine.model} Use and Maintenance Manual',
+            section=h.get('section'),
+            excerpt=h.get('excerpt') or '',
+            page=h.get('page'),
+            score=h.get('score'),
+            source=h.get('source') or machine.manual_url or None,
         )
-    ][: params.top_k]
+        for h in raw_hits
+    ]
+    log.info(
+        'search_manual model=%s query=%r hits=%d',
+        machine.model,
+        params.query,
+        len(hits),
+    )
     return SearchManualOutput(query=params.query, hits=hits)

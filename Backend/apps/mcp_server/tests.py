@@ -69,6 +69,19 @@ class McpRegistryTests(TestCase):
         self.assertEqual(result['status'], 'error')
         self.assertEqual(result['code'], 'FORBIDDEN')
 
+    def test_search_manual_returns_hits_for_manual_queries(self) -> None:
+        result = registry.invoke(
+            'search_manual',
+            {
+                'customer_id': 'demo',
+                'machine_serial': 'A3279',
+                'query': 'torque adjustment',
+                'top_k': 3,
+            },
+        )
+        self.assertEqual(result['status'], 'ok')
+        self.assertGreaterEqual(len(result['data']['hits']), 1)
+
     def test_list_customer_machines(self) -> None:
         result = registry.invoke('list_customer_machines', {'customer_id': 'demo'})
         self.assertEqual(result['status'], 'ok')

@@ -20,7 +20,5 @@ class ManualHit(BaseModel):
 
 
 class SearchManualOutput(BaseModel):
-    stub: bool = True
     query: str
     hits: list[ManualHit]
-    note: str = 'search_manual is a stub until rag_engine is wired.'

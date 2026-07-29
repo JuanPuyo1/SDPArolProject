@@ -1,5 +1,10 @@
-"""search_error_codes — troubleshooting knowledge stub."""
+"""search_error_codes — troubleshooting knowledge backed by Qdrant."""
 
+from __future__ import annotations
+
+import logging
+
+from apps.mcp_server.rag_engine import search as rag_search
 from apps.mcp_server.schemas.troubleshooting import (
     ErrorCodeHit,
     SearchErrorCodesInput,
@@ -7,25 +12,35 @@ from apps.mcp_server.schemas.troubleshooting import (
 )
 from apps.mcp_server.scoping import get_owned_machine
 
+log = logging.getLogger(__name__)
+
 
 def search_error_codes(params: SearchErrorCodesInput) -> SearchErrorCodesOutput:
     machine = get_owned_machine(
         customer_id=params.customer_id,
         machine_serial=params.machine_serial,
     )
+
+    raw_hits = rag_search.search_error_codes(
+        query=params.query,
+        machine_model=machine.model,
+        top_k=params.top_k,
+    )
+
     hits = [
         ErrorCodeHit(
-            code='STUB-000',
-            title='Stub troubleshooting match',
-            severity='info',
-            summary=(
-                f'No error-code index yet for {machine.serial_number}. '
-                f'Query was {params.query!r}.'
-            ),
-            recommended_actions=[
-                'Confirm the alarm code on the HMI.',
-                'Call search_manual with the same symptom for procedure text.',
-            ],
+            code=h.get('code') or 'UNKNOWN',
+            title=h.get('title') or 'Troubleshooting match',
+            severity=h.get('severity'),
+            summary=h.get('summary', ''),
+            recommended_actions=list(h.get('recommended_actions') or []),
         )
-    ][: params.top_k]
+        for h in raw_hits
+    ]
+    log.info(
+        'search_error_codes model=%s query=%r hits=%d',
+        machine.model,
+        params.query,
+        len(hits),
+    )
     return SearchErrorCodesOutput(query=params.query, hits=hits)

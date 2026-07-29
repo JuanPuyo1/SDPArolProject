@@ -81,6 +81,20 @@ class StubOrchestratorTests(TestCase):
         text = ''.join(c.content for c in chunks if c.type == 'token')
         self.assertIn('TKT-', text)
 
+    @override_settings(ANTHROPIC_API_KEY='')
+    def test_manual_queries_trigger_search_manual_tool(self) -> None:
+        orchestrator = StubOrchestrator()
+        chunks = list(
+            orchestrator.run(
+                customer_id='demo',
+                machine_serial='A3279',
+                message='How do I adjust torque on the capping head?',
+            ),
+        )
+
+        tool_names = [c.tool for c in chunks if c.type == 'tool']
+        self.assertIn('search_manual', tool_names)
+
 
 class TroubleshootingServiceAgentTests(TestCase):
     def test_classify_intent(self) -> None:

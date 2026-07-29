@@ -62,7 +62,14 @@ class TroubleshootingServiceAgent:
             )
             return
 
-        if intent is AgentIntent.TROUBLESHOOTING:
+        if _mentions_manual_lookup(message):
+            yield from self._run_manual_chain(
+                customer_id=customer_id,
+                machine_serial=machine_serial,
+                message=message,
+                tool_context=tool_context,
+            )
+        elif intent is AgentIntent.TROUBLESHOOTING:
             yield from self._run_troubleshooting_chain(
                 customer_id=customer_id,
                 machine_serial=machine_serial,
@@ -97,6 +104,26 @@ class TroubleshootingServiceAgent:
             )
 
         yield OrchestratorChunk(type='done')
+
+    def _run_manual_chain(
+        self,
+        *,
+        customer_id: str,
+        machine_serial: str,
+        message: str,
+        tool_context: list[dict[str, Any]],
+    ) -> Iterator[OrchestratorChunk]:
+        yield from self._invoke_tool(
+            tool_name='search_manual',
+            params={
+                'customer_id': customer_id,
+                'machine_serial': machine_serial,
+                'query': message,
+                'top_k': 5,
+            },
+            step_label='Searching the machine manual for relevant guidance…',
+            tool_context=tool_context,
+        )
 
     def _run_troubleshooting_chain(
         self,
@@ -208,6 +235,15 @@ def classify_intent(message: str) -> AgentIntent:
     ):
         return AgentIntent.TROUBLESHOOTING
     return AgentIntent.GENERAL
+
+
+def _mentions_manual_lookup(message: str) -> bool:
+    return bool(
+        re.search(
+            r'\b(manual|maintenance|procedure|adjust|torque|pressure|settings|guide|how to|how do i|operate|replace|inspect|clean|alignment|alignment|service)\b',
+            message.lower(),
+        ),
+    )
 
 
 def _mentions_telemetry(message: str) -> bool:

@@ -23,7 +23,5 @@ class ErrorCodeHit(BaseModel):
 
 
 class SearchErrorCodesOutput(BaseModel):
-    stub: bool = True
     query: str
     hits: list[ErrorCodeHit]
-    note: str = 'search_error_codes is a stub until troubleshooting knowledge is ingested.'
