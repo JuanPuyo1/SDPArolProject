@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterator
 from enum import Enum
-from typing import Annotated, TypedDict
+from typing import Annotated, Literal, TypedDict
 
-from langchain_core.messages import BaseMessage
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
+from pydantic import BaseModel, Field
 
+from apps.agents.agent_kit import DEFAULT_MODEL
 from apps.agents.orders_business_agent import OrdersBusinessAgent
 from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
 from apps.agents.troubleshooting_service_agent import TroubleshootingServiceAgent
@@ -23,16 +25,49 @@ class AgentIntent(str, Enum):
     TROUBLESHOOTING_SERVICE = 'troubleshooting_service'
 
 
-_ORDERS_BUSINESS_PATTERN = re.compile(
-    r'\b(quote|quotation|order|invoice|contract|warranty|price|pricing|purchase)\b',
-    re.IGNORECASE,
-)
+class _RouteDecision(BaseModel):
+    """Structured output schema for the router LLM call."""
+
+    agent: Literal['orders_business', 'troubleshooting_service'] = Field(
+        description=(
+            "'orders_business' for quotes, order status, invoices, "
+            "contracts, warranty, or pricing/purchasing questions; "
+            "'troubleshooting_service' for alarms, faults, breakdowns, "
+            "diagnostics, telemetry, manual lookups, or field-service "
+            "ticket requests."
+        ),
+    )
 
 
-def classify_intent(message: str) -> AgentIntent:
-    if _ORDERS_BUSINESS_PATTERN.search(message):
-        return AgentIntent.ORDERS_BUSINESS
-    return AgentIntent.TROUBLESHOOTING_SERVICE
+_ROUTER_SYSTEM_PROMPT = """Classify the user's message for AROL's customer \
+chat platform (industrial capping/filling machines) into exactly one of two \
+agents:
+
+- orders_business: quotes (including revision history), order status, \
+invoices, contracts, warranty, pricing/purchasing.
+- troubleshooting_service: alarms, faults, breakdowns, diagnostics, \
+telemetry, manual lookups, opening a field-service ticket.
+
+Pick whichever agent's domain the message best fits, based on its meaning \
+rather than exact keyword matches. If the message is a greeting or is \
+otherwise generic/ambiguous and doesn't clearly belong to orders_business \
+(e.g. "hi", "how can you help me?", "what can you do?"), default to \
+troubleshooting_service -- it's the general-purpose front door for this \
+platform."""
+
+
+def build_router_llm():
+    """Real Claude client bound to the routing decision schema. Callers may
+    inject a fake model instead (e.g. in tests) via classify_intent(llm=...)."""
+    return ChatAnthropic(model=DEFAULT_MODEL).with_structured_output(_RouteDecision)
+
+
+def classify_intent(message: str, llm=None) -> AgentIntent:
+    router = llm or build_router_llm()
+    decision = router.invoke(
+        [SystemMessage(content=_ROUTER_SYSTEM_PROMPT), HumanMessage(content=message)],
+    )
+    return AgentIntent(decision.agent)
 
 
 class ChatState(TypedDict):

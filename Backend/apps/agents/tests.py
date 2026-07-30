@@ -8,12 +8,15 @@ tenant scoping, chunk sequencing -- rather than Claude's actual reasoning.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, TransactionTestCase, override_settings
 from langchain_core.messages import AIMessageChunk
+from langchain_core.tools import tool
 
+from apps.agents.agent_kit import AgentTool, run_tool_calling_loop
 from apps.agents.langgraph_orchestrator import AgentIntent, LangGraphOrchestrator, classify_intent
 from apps.agents.stub_orchestrator import StubOrchestrator
 from apps.machines.models import Machine
@@ -48,6 +51,20 @@ class _ScriptedLLM:
         yield from next(self._turns)
 
 
+class _FakeRouterLLM:
+    """Router stand-in: classify_intent() only ever calls .invoke(messages)
+    and reads the returned object's `.agent` attribute -- matches the shape
+    of the real _RouteDecision structured-output result without hitting
+    Claude, so routing tests stay deterministic and don't test the model's
+    actual judgement (see module docstring)."""
+
+    def __init__(self, agent: str) -> None:
+        self._agent = agent
+
+    def invoke(self, _messages):
+        return SimpleNamespace(agent=self._agent)
+
+
 def _make_machine(owner) -> Machine:
     return Machine.objects.create(
         owner=owner,
@@ -72,6 +89,96 @@ def _make_machine(owner) -> Machine:
         operating_environment='Indoor',
         operating_noise='<80 dB',
     )
+
+
+class RunToolCallingLoopTests(TestCase):
+    """Circuit-breaker behavior of run_tool_calling_loop itself: a
+    hallucinated tool name or a raising tool must become an error fed back to
+    the model, never an uncaught exception, and a model that keeps calling
+    tools forever must be cut off rather than looping (and billing) forever."""
+
+    def test_unknown_tool_call_is_reported_to_model_not_raised(self) -> None:
+        @tool
+        def noop_tool() -> dict:
+            """Does nothing."""
+            return {'status': 'ok'}
+
+        llm = _ScriptedLLM(
+            [
+                _tool_call_turn('does_not_exist', {}),
+                _text_turn('Sorry, I could not find that tool.'),
+            ],
+        )
+        chunks = list(
+            run_tool_calling_loop(
+                llm,
+                [AgentTool(noop_tool, 'Doing nothing…')],
+                system_prompt='test',
+                user_message='hi',
+            ),
+        )
+
+        tool_chunk = next(c for c in chunks if c.type == 'tool')
+        self.assertEqual(tool_chunk.tool, 'does_not_exist')
+        assert tool_chunk.data is not None
+        self.assertEqual(tool_chunk.data['status'], 'error')
+        self.assertIn('Unknown tool', tool_chunk.data['message'])
+        # The loop recovered and still produced a final answer instead of
+        # crashing on the KeyError that `tools_by_name[call['name']]` used to
+        # raise for a hallucinated tool name.
+        self.assertTrue(any(c.type == 'token' for c in chunks))
+
+    def test_tool_exception_is_reported_to_model_not_raised(self) -> None:
+        @tool
+        def boom_tool() -> dict:
+            """Always raises."""
+            raise RuntimeError('kaboom')
+
+        llm = _ScriptedLLM(
+            [
+                _tool_call_turn('boom_tool', {}),
+                _text_turn('The tool failed, here is what happened.'),
+            ],
+        )
+        chunks = list(
+            run_tool_calling_loop(
+                llm,
+                [AgentTool(boom_tool, 'Triggering boom…')],
+                system_prompt='test',
+                user_message='hi',
+            ),
+        )
+
+        tool_chunk = next(c for c in chunks if c.type == 'tool')
+        assert tool_chunk.data is not None
+        self.assertEqual(tool_chunk.data['status'], 'error')
+        self.assertIn('kaboom', tool_chunk.data['message'])
+        self.assertTrue(any(c.type == 'token' for c in chunks))
+
+    def test_max_iterations_cap_stops_an_infinite_tool_loop(self) -> None:
+        @tool
+        def spin_tool() -> dict:
+            """A tool a runaway model keeps calling instead of answering."""
+            return {'status': 'ok'}
+
+        # Every scripted turn calls the tool again -- with no cap this would
+        # be `while True:` and never terminate.
+        llm = _ScriptedLLM([_tool_call_turn('spin_tool', {}) for _ in range(3)])
+        chunks = list(
+            run_tool_calling_loop(
+                llm,
+                [AgentTool(spin_tool, 'Spinning…')],
+                system_prompt='test',
+                user_message='hi',
+                max_iterations=3,
+            ),
+        )
+
+        tool_chunks = [c for c in chunks if c.type == 'tool']
+        self.assertEqual(len(tool_chunks), 3)
+        self.assertEqual(chunks[-1].type, 'error')
+        assert chunks[-1].message is not None
+        self.assertIn('3 tool-calling round-trips', chunks[-1].message)
 
 
 class StubOrchestratorTests(TestCase):
@@ -180,23 +287,36 @@ class LangGraphOrchestratorTests(TransactionTestCase):
         self.user = User.objects.create_user(username='demo', password='demo')
         _make_machine(self.user)
 
-    def test_classify_intent(self) -> None:
+    def test_classify_intent_maps_router_decision_to_agent_intent(self) -> None:
+        """classify_intent() is now a thin wrapper around an LLM structured-
+        output call (see langgraph_orchestrator.build_router_llm) rather than
+        a keyword regex, so this only verifies the plumbing -- that the
+        message reaches the router and its `.agent` decision maps onto the
+        right AgentIntent -- not the model's actual judgement."""
+        seen_messages: list[list] = []
+
+        class _RecordingRouterLLM(_FakeRouterLLM):
+            def invoke(self, messages):
+                seen_messages.append(list(messages))
+                return super().invoke(messages)
+
         self.assertEqual(
-            classify_intent('Has our quote been revised?'),
+            classify_intent(
+                'Has our quote been revised?',
+                llm=_RecordingRouterLLM('orders_business'),
+            ),
             AgentIntent.ORDERS_BUSINESS,
         )
         self.assertEqual(
-            classify_intent('What is the status of my last order?'),
-            AgentIntent.ORDERS_BUSINESS,
-        )
-        self.assertEqual(
-            classify_intent('Alarm E042 star-wheel jam'),
+            classify_intent(
+                'Alarm E042 star-wheel jam',
+                llm=_RecordingRouterLLM('troubleshooting_service'),
+            ),
             AgentIntent.TROUBLESHOOTING_SERVICE,
         )
-        self.assertEqual(
-            classify_intent('What machine is this?'),
-            AgentIntent.TROUBLESHOOTING_SERVICE,
-        )
+
+        last_call_texts = [getattr(m, 'content', '') for m in seen_messages[-1]]
+        self.assertTrue(any('Alarm E042 star-wheel jam' in t for t in last_call_texts))
 
     def test_routes_business_message_to_orders_business_agent(self) -> None:
         llm = _ScriptedLLM(
@@ -205,7 +325,13 @@ class LangGraphOrchestratorTests(TransactionTestCase):
                 _text_turn('Your order has shipped.'),
             ],
         )
-        with patch('apps.agents.orders_business_agent.build_llm', return_value=llm):
+        with (
+            patch(
+                'apps.agents.langgraph_orchestrator.build_router_llm',
+                return_value=_FakeRouterLLM('orders_business'),
+            ),
+            patch('apps.agents.orders_business_agent.build_llm', return_value=llm),
+        ):
             chunks = list(
                 LangGraphOrchestrator().run(
                     customer_id='demo',
@@ -229,7 +355,13 @@ class LangGraphOrchestratorTests(TransactionTestCase):
                 _text_turn('That alarm means a star-wheel jam.'),
             ],
         )
-        with patch('apps.agents.troubleshooting_service_agent.build_llm', return_value=llm):
+        with (
+            patch(
+                'apps.agents.langgraph_orchestrator.build_router_llm',
+                return_value=_FakeRouterLLM('troubleshooting_service'),
+            ),
+            patch('apps.agents.troubleshooting_service_agent.build_llm', return_value=llm),
+        ):
             chunks = list(
                 LangGraphOrchestrator().run(
                     customer_id='demo',
@@ -270,7 +402,13 @@ class LangGraphOrchestratorTests(TransactionTestCase):
                 _text_turn('Yes, clearing the jam and resetting the alarm should fix it.'),
             ],
         )
-        with patch('apps.agents.troubleshooting_service_agent.build_llm', return_value=llm):
+        with (
+            patch(
+                'apps.agents.langgraph_orchestrator.build_router_llm',
+                return_value=_FakeRouterLLM('troubleshooting_service'),
+            ),
+            patch('apps.agents.troubleshooting_service_agent.build_llm', return_value=llm),
+        ):
             list(
                 LangGraphOrchestrator().run(
                     customer_id='demo',

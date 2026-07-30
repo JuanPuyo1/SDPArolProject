@@ -29,6 +29,7 @@ from apps.agents.ports import OrchestratorChunk
 from apps.mcp_server import registry
 
 DEFAULT_MODEL = getattr(settings, 'ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
+DEFAULT_MAX_ITERATIONS = 8
 
 
 class AgentTool(NamedTuple):
@@ -72,6 +73,7 @@ def run_tool_calling_loop(
     user_message: str,
     history: list[BaseMessage] | None = None,
     new_messages_sink: list[BaseMessage] | None = None,
+    max_iterations: int = DEFAULT_MAX_ITERATIONS,
 ) -> Iterator[OrchestratorChunk]:
     """Stream Claude turns until it stops calling tools.
 
@@ -82,6 +84,15 @@ def run_tool_calling_loop(
     turn adds (the new HumanMessage plus any ToolMessages/AIMessages) is
     appended to it once the turn finishes, so the caller can persist just the
     delta back into shared state instead of the whole reconstructed history.
+
+    `max_iterations` caps the number of tool-calling round-trips this turn
+    may take: without it a model that never stops calling tools loops (and
+    bills) forever. On exhaustion, whatever was gathered so far is still
+    persisted to `new_messages_sink` and an `error` chunk is yielded instead
+    of a final answer. A hallucinated tool name or a tool that raises is fed
+    back to the model as an error ToolMessage rather than crashing the
+    generator, mirroring how every real tool result already carries a
+    {'status': 'error', ...} envelope (see registry.invoke).
 
     Each turn is streamed via llm.stream() and buffered locally rather than
     forwarded live. Once a turn completes:
@@ -102,7 +113,7 @@ def run_tool_calling_loop(
     ]
     turn_start = len(messages) - 1  # first message this turn added (the HumanMessage)
 
-    while True:
+    for _ in range(max_iterations):
         accumulated = None
         buffered_text: list[str] = []
         for chunk in llm.stream(messages):
@@ -120,10 +131,24 @@ def run_tool_calling_loop(
             return
 
         for call in accumulated.tool_calls:
-            entry = tools_by_name[call['name']]
-            yield OrchestratorChunk(type='step', content=entry.step_label)
-            result = entry.tool.invoke(call['args'])
+            entry = tools_by_name.get(call['name'])
+            if entry is None:
+                result = {'status': 'error', 'message': f"Unknown tool: {call['name']}"}
+            else:
+                yield OrchestratorChunk(type='step', content=entry.step_label)
+                try:
+                    result = entry.tool.invoke(call['args'])
+                except Exception as exc:  # noqa: BLE001
+                    # Reported back to the model as a tool error, not raised.
+                    result = {'status': 'error', 'message': f'{call["name"]} failed: {exc}'}
             yield OrchestratorChunk(type='tool', tool=call['name'], data=result)
             messages.append(
                 ToolMessage(content=json.dumps(result, default=str), tool_call_id=call['id']),
             )
+
+    if new_messages_sink is not None:
+        new_messages_sink.extend(messages[turn_start:])
+    yield OrchestratorChunk(
+        type='error',
+        message=f'Gave up after {max_iterations} tool-calling round-trips without a final answer.',
+    )

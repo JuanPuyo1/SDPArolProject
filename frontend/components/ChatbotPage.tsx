@@ -17,7 +17,7 @@ function buildWelcomeMessage(model: string, serial: string): ChatMessageData {
   return {
     id: 'welcome',
     role: 'assistant',
-    text: `Hi, I'm the Arol Troubleshooting & Service assistant for the ${model} (${serial}). Ask about alarms, error codes, or maintenance — I'll call MCP tools, show each step, and stream a reply.`,
+    text: `Hi, I'm the Arol Chatbot assistant for the ${model} (${serial}). Ask about anything related to the machine, the telemetry, orders and/or services — I'll be happy to help you`,
     attachments: [],
   }
 }
