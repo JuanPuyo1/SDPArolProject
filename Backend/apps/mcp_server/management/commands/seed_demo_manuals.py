@@ -127,8 +127,8 @@ class Command(BaseCommand):
         all_child_texts: list[str] = []
         all_payloads: list[dict] = []
         for doc_text, meta in (
-            (MANUAL_EURO_VIP, {'machine_model': 'AROL_EURO_VIP', 'chapter': 'Chapter 4', 'section': 'Section 4.4', 'doc_type': 'user_manual'}),
-            (MANUAL_EURO_VP,  {'machine_model': 'AROL_EURO_VP',  'chapter': 'Chapter 5', 'section': 'Section 5.2', 'doc_type': 'maintenance_guide'}),
+            (MANUAL_EURO_VIP, {'machine_model': 'AROL_EURO_VIP', 'doc_type': 'user_manual'}),
+            (MANUAL_EURO_VP,  {'machine_model': 'AROL_EURO_VP',  'doc_type': 'maintenance_guide'}),
         ):
             for p_idx, parent_text in enumerate(parent_splitter.split_text(doc_text)):
                 parent_id = f"{meta['machine_model']}_p{p_idx}"
@@ -136,6 +136,7 @@ class Command(BaseCommand):
                     all_payloads.append(
                         {
                             **meta,
+                            'page_number': None,
                             'child_content': child_text,
                             'parent_id': parent_id,
                             'parent_content': parent_text,

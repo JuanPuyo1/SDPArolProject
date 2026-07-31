@@ -26,9 +26,9 @@ def search_manual(params: SearchManualInput) -> SearchManualOutput:
     hits = [
         ManualHit(
             title=h.get('title') or f'{machine.model} Use and Maintenance Manual',
-            section=h.get('section'),
             excerpt=h.get('excerpt') or '',
-            page=h.get('page'),
+            page_number=h.get('page_number'),
+            page=h.get('page_number'),
             score=h.get('score'),
             source=h.get('source') or machine.manual_url or None,
         )

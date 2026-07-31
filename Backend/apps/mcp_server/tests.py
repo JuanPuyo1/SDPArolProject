@@ -106,3 +106,99 @@ class McpRegistryTests(TestCase):
         )
         self.assertEqual(invoked.status_code, 200)
         self.assertEqual(invoked.json()['data']['echo'], 'http')
+
+    def test_markdown_ingestion_and_payload_consistency(self) -> None:
+        from apps.mcp_server.rag_engine.ingest import IngestMetadata, ingest_markdown_text
+        from apps.mcp_server.rag_engine import search as rag_search
+
+        sample_md = """<!-- Page 10 -->
+
+# CHAPTER 5: MAINTENANCE
+
+## Section 5.2 - Capping Head Pressure
+
+To adjust capping head pressure on CLOSYS EAGLE VP, turn calibration screw T-804 clockwise.
+"""
+        meta = IngestMetadata(
+            machine_model='CLOSYS EAGLE VP',
+            doc_id='test-doc-01',
+            doc_type='maintenance_guide',
+            source='test_manual.md',
+        )
+        count = ingest_markdown_text(markdown_text=sample_md, metadata=meta)
+        self.assertGreater(count, 0)
+
+        hits = rag_search.search_manuals(
+            query='calibration screw T-804 pressure',
+            machine_model='CLOSYS EAGLE VP',
+            top_k=2,
+        )
+        self.assertGreaterEqual(len(hits), 1)
+
+        first = hits[0]
+        self.assertEqual(first['page_number'], 10)
+        self.assertIn('CLOSYS EAGLE VP', first['title'])
+
+    def test_search_manual_with_markdown_payloads(self) -> None:
+        from apps.mcp_server.rag_engine.ingest import IngestMetadata, ingest_markdown_text
+
+        sample_md = """<!-- Page 14 -->
+
+# CHAPTER 3: OPERATING MODES
+
+## Section 3.1 - Operator Safety
+
+Always press emergency stop button before clearing bottle jam on CLOSYS EAGLE VP.
+"""
+        ingest_markdown_text(
+            markdown_text=sample_md,
+            metadata=IngestMetadata(
+                machine_model='CLOSYS EAGLE VP',
+                doc_id='safety-doc',
+                doc_type='user_manual',
+            ),
+        )
+
+        result = registry.invoke(
+            'search_manual',
+            {
+                'customer_id': 'demo',
+                'machine_serial': 'A3279',
+                'query': 'emergency stop button bottle jam',
+                'top_k': 3,
+            },
+        )
+        self.assertEqual(result['status'], 'ok')
+        hits = result['data']['hits']
+        self.assertGreaterEqual(len(hits), 1)
+        self.assertEqual(hits[0]['page_number'], 14)
+
+    def test_general_catalogue_reachable_across_all_models(self) -> None:
+        from apps.mcp_server.rag_engine.ingest import IngestMetadata, ingest_markdown_text
+        from apps.mcp_server.rag_engine import search as rag_search
+
+        catalogue_md = """# AROL GENERAL CATALOGUE
+
+## GLOBAL SOLUTIONS
+
+AROL designs capping machines worldwide for food and beverage packaging lines.
+"""
+        ingest_markdown_text(
+            markdown_text=catalogue_md,
+            metadata=IngestMetadata(
+                machine_model='AROL_GENERAL',
+                doc_id='catalogue-doc',
+                doc_type='general_catalogue',
+            ),
+        )
+
+        hits = rag_search.search_manuals(
+            query='capping machines worldwide food beverage',
+            machine_model='CLOSYS EAGLE VP',
+            top_k=2,
+        )
+        self.assertGreaterEqual(len(hits), 1)
+        self.assertTrue(
+            any('AROL_GENERAL' in h['title'] or h['doc_type'] == 'general_catalogue' for h in hits)
+        )
+

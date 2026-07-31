@@ -12,8 +12,8 @@ class SearchManualInput(ScopedContext):
 
 class ManualHit(BaseModel):
     title: str
-    section: str | None = None
     excerpt: str
+    page_number: int | None = None
     page: int | None = None
     score: float | None = None
     source: str | None = None

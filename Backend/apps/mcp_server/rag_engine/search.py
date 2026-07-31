@@ -34,10 +34,18 @@ def _build_machine_model_filter(machine_model: str | None) -> models.Filter | No
     if not machine_model:
         return None
     return models.Filter(
-        must=[
+        should=[
             models.FieldCondition(
                 key='machine_model',
                 match=models.MatchValue(value=machine_model),
+            ),
+            models.FieldCondition(
+                key='machine_model',
+                match=models.MatchValue(value='AROL_GENERAL'),
+            ),
+            models.FieldCondition(
+                key='doc_type',
+                match=models.MatchValue(value='general_catalogue'),
             ),
         ],
     )
@@ -88,12 +96,11 @@ def search_manuals(
         results.append(
             {
                 'title': f"{payload.get('machine_model', 'AROL')} Manual",
-                'section': payload.get('section'),
-                'chapter': payload.get('chapter'),
                 'excerpt': payload.get('parent_content')
                 or payload.get('child_content', ''),
                 'matched_segment': payload.get('child_content'),
-                'page': payload.get('page'),
+                'page_number': payload.get('page_number'),
+                'page': payload.get('page_number'),  # Alias for backward compatibility if code calls .get('page')
                 'score': float(hit.score) if hit.score is not None else None,
                 'source': payload.get('source') or payload.get('doc_id'),
                 'doc_type': payload.get('doc_type'),

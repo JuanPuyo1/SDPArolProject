@@ -123,9 +123,9 @@ result = registry.invoke(
 
 **Expectations:**
 
-| Ready today | Stub contract (stable I/O, placeholder data) |
-|-------------|-----------------------------|
-| `echo`, `get_machine_info`, `list_customer_machines` | `search_manual`, `query_telemetry`, `list_spare_parts`, `search_error_codes`, `create_ticket` |
+| Ready today (Vector DB & ORM) | Stub contract (stable I/O, placeholder data) |
+|--------------------------------|---------------------------------------------|
+| `echo`, `get_machine_info`, `list_customer_machines`, `search_manual` (Qdrant), `search_error_codes` (Qdrant) | `query_telemetry`, `list_spare_parts`, `create_ticket` |
 
 Full catalog and schemas: [ORCHESTRATOR_GUIDE.md](./ORCHESTRATOR_GUIDE.md).
 
@@ -149,6 +149,7 @@ Chunk types the frontend already understands:
 |------|---------|
 | `token` | Streamed assistant text |
 | `tool` | MCP tool name + invoke envelope |
+| `step` | Thinking or execution step indicator |
 | `error` | Error message for the UI |
 | `done` | End of run |
 
@@ -158,12 +159,12 @@ HTTP: `POST /api/agents/chat/` → `text/event-stream`. Details: [ORCHESTRATOR_I
 
 | Backend | Env value | Status | What you get |
 |---------|-----------|--------|--------------|
-| **StubOrchestrator** | `ORCHESTRATOR_BACKEND=stub` | Implemented | Always calls `get_machine_info`; keyword heuristics call one follow-up tool; streams Anthropic tokens if key set, else canned text |
+| **StubOrchestrator** | `ORCHESTRATOR_BACKEND=stub` | Implemented | TroubleshootingServiceAgent chains; calls real MCP tools (including Qdrant vector search); streams Anthropic tokens if key set, else canned text |
 | **LangGraphOrchestrator** | `ORCHESTRATOR_BACKEND=langgraph` | Placeholder | Partner graph: multi-step planning, agent routing, real tool loops |
 
 **Stub does not:** multi-agent routing, LLM tool choice, conversation memory, cost accounting. Those are LangGraph / platform follow-ups.
 
-**LangGraph must:** keep `customer_id` + `machine_serial` in state; call MCP only; map graph events to the four chunk types above — no parallel SSE protocol.
+**LangGraph must:** keep `customer_id` + `machine_serial` in state; call MCP only; map graph events to the chunk types above — no parallel SSE protocol.
 
 ---
 
@@ -174,10 +175,10 @@ HTTP: `POST /api/agents/chat/` → `text/event-stream`. Details: [ORCHESTRATOR_I
 | Agent | Owner | Primary tools | Expectation |
 |-------|-------|---------------|-------------|
 | **Shared** | Platform | `get_machine_info`, `list_customer_machines`, `echo` | Always available to every agent |
-| **Manuals** | Partner | `search_manual` | Procedures / safety / maintenance excerpts (RAG later) |
+| **Manuals** | Partner / Platform | `search_manual` | Qdrant vector retrieval for manuals (parent-child passages) |
 | **Telemetry** | Partner | `query_telemetry` | Metrics / time series for a machine |
 | **Business** | Partner | `list_spare_parts` | Parts catalog / upsell hints |
-| **Troubleshooting** | Esteban | `search_error_codes` (+ often `search_manual`) | Alarms → diagnosis + recommended actions |
+| **Troubleshooting** | Esteban / Platform | `search_error_codes` (+ often `search_manual`) | Alarms → Qdrant vector search + diagnosis + recommended actions |
 | **Service** | Esteban | `create_ticket` | Open field/support tickets |
 
 ### Intent → tools (orchestrator routing hint)
@@ -191,14 +192,7 @@ HTTP: `POST /api/agents/chat/` → `text/event-stream`. Details: [ORCHESTRATOR_I
 | Technician / ticket | `create_ticket` |
 | What machine is this? | `get_machine_info` |
 
-Until LangGraph lands, the **stub** approximates this with keyword rules so the full stack (UI → MCP → SSE) stays testable.
-
-### Agent contract (non-negotiable)
-
-1. Call tools only through `registry.invoke` (or `list_tools` for discovery).
-2. Never import Django models into agent/graph nodes.
-3. Pass and trust tenant IDs; handle `status: "error"` envelopes cleanly.
-4. Treat `stub: true` payloads as temporary data with **stable schemas**.
+Until LangGraph lands, the **stub agent (`TroubleshootingServiceAgent`)** implements intent classification and tool execution chains so the full stack (UI → MCP → Qdrant → SSE) stays testable.
 
 ---
 
@@ -209,7 +203,7 @@ Until LangGraph lands, the **stub** approximates this with keyword rules so the 
 3. `ChatbotPage` → `POST /api/agents/chat/` with `{ message, machine_serial? }`.
 4. `agents/views.py` checks auth, resolves owned serial, sets `customer_id = username`.
 5. `factory.get_orchestrator()` reads `ORCHESTRATOR_BACKEND`.
-6. Orchestrator calls MCP tools → streams `tool` / `token` / `done` SSE events.
+6. Orchestrator calls MCP tools (including Qdrant Vector DB queries) → streams `step` / `tool` / `token` / `done` SSE events.
 7. Frontend appends tokens into the assistant bubble.
 
 ---
@@ -224,7 +218,7 @@ load_dotenv(BASE_DIR.parent / '.env')
 
 ### Setup
 
-1. Copy the template: `cp .env.example .env` (or copy manually on Windows).
+1. Copy the template: `cp .env.example .env`
 2. Fill secrets locally.
 3. **Never commit `.env`** — it is listed in `.gitignore`. Commit only `.env.example`.
 
@@ -233,8 +227,10 @@ load_dotenv(BASE_DIR.parent / '.env')
 | Variable | Example / default | Purpose |
 |----------|-------------------|---------|
 | `ORCHESTRATOR_BACKEND` | `stub` | `stub` = local/CI simulator; `langgraph` = partner adapter |
-| `ANTHROPIC_API_KEY` | *(empty)* | Optional. If set, StubOrchestrator streams real Claude replies; if unset, canned SSE tokens (CI-friendly) |
+| `ANTHROPIC_API_KEY` | *(empty)* | Optional. If set, StubOrchestrator streams real Claude replies; if unset, canned SSE tokens |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5-20251001` | Model id used when the API key is present |
+| `QDRANT_URL` | `:memory:` | Qdrant DB server URL (or `:memory:` for local in-memory vector DB) |
+| `QDRANT_API_KEY` | *(empty)* | Optional API key for cloud or authenticated Qdrant cluster |
 
 Template (`.env.example`):
 
@@ -242,22 +238,16 @@ Template (`.env.example`):
 ORCHESTRATOR_BACKEND=stub
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-haiku-4-5-20251001
+QDRANT_URL=:memory:
 ```
-
-### Rules for secrets
-
-- **Backend only** — never put `ANTHROPIC_API_KEY` in `VITE_*` or frontend env.
-- Rotate any key that was pasted into chat, tickets, or screenshots.
-- Production should also set `DEBUG=False`, disable MCP HTTP invoke, and use a real `SECRET_KEY` (not only `.env` for orchestrator).
 
 ---
 
 ## 11. Local development checklist
 
 ```bash
-# Backend (repo root .venv)
+# Backend (from Backend/)
 cd Backend
-# ensure ../.env exists (from .env.example)
 python manage.py migrate
 python manage.py seed_demo_machine --username demo
 python manage.py runserver          # http://127.0.0.1:8000
@@ -268,7 +258,7 @@ npm install
 npm run dev                         # http://localhost:5173  (proxies /api)
 ```
 
-Demo login: `demo` / `demo1234` (if created earlier).
+Demo login: `demo` / `demo1234`.
 
 Useful tests:
 
@@ -284,8 +274,9 @@ python manage.py test apps.mcp_server apps.agents
 |------|-------|------|
 | Auth + sessions | Done | Customer org model beyond username if needed |
 | Machines API + UI | Done (A3279 seed) | Multi-machine picker in UI |
-| MCP registry + tools | Done (some stub data) | Real RAG / telemetry / tickets |
-| Stub orchestrator + SSE chat | Done | — |
+| MCP registry + tools | Done | Wire remaining stubs (telemetry, tickets, ERP) |
+| Vector DB RAG Engine | Done (Qdrant + FastEmbed) | Additional document sources & manual PDF ingestion |
+| Stub orchestrator + SSE chat | Done (`TroubleshootingServiceAgent`) | — |
 | LangGraph orchestrator | Adapter stub | Partner graph + agent routing |
 | Cost / token logging | Planned (`core`) | Wire on every tool/LLM call |
 

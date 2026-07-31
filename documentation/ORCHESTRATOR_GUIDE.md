@@ -94,10 +94,10 @@ Demo seed: user `demo`, serial `A3279` (`python manage.py seed_demo_machine`).
 | `echo` | shared | ready | optional | Connectivity / debug |
 | `get_machine_info` | shared | ready | customer + serial | Full machine record |
 | `list_customer_machines` | shared | ready | customer only | Fleet list |
-| `search_manual` | **manuals** | stub | customer + serial | Manual / RAG passages |
+| `search_manual` | **manuals** | **ready** | customer + serial | Qdrant vector retrieval for manuals |
 | `query_telemetry` | **telemetry** | stub | customer + serial | Metric time series |
 | `list_spare_parts` | **business** | stub | customer + serial | Spare parts catalog |
-| `search_error_codes` | **troubleshooting** | stub | customer + serial | Alarms + recommended steps |
+| `search_error_codes` | **troubleshooting** | **ready** | customer + serial | Qdrant vector retrieval for alarms & error codes |
 | `create_ticket` | **service** | stub | customer + serial | Open support ticket |
 
 `registry.list_tools(agent="manuals")` returns that agent’s tools **plus** all `shared` tools.
@@ -145,10 +145,11 @@ Demo seed: user `demo`, serial `A3279` (`python manage.py seed_demo_machine`).
 
 ---
 
-### `search_manual` (manuals · stub)
+### `search_manual` (manuals · ready)
 
 **Owner:** Manuals Agent  
 **When:** Procedures, safety, maintenance steps from the digital manual.  
+**Backend:** Powered by `apps.mcp_server.rag_engine` (Qdrant Vector Database with FastEmbed embeddings and parent-child chunk retrieval).  
 **Input:**
 
 ```json
@@ -160,9 +161,9 @@ Demo seed: user `demo`, serial `A3279` (`python manage.py seed_demo_machine`).
 }
 ```
 
-**Output:** `{ "stub": true, "query", "hits": [ { "title", "section", "excerpt", "page", "score", "source" } ], "note" }`
+**Output:** `{ "query", "hits": [ { "title", "section", "excerpt", "page", "score", "source" } ] }`
 
-Until `rag_engine` is live, one stub hit is returned so the graph can keep flowing.
+Queries are automatically filtered by `machine_model` to enforce strict tenant boundary scoping.
 
 ---
 
@@ -206,10 +207,11 @@ Until `rag_engine` is live, one stub hit is returned so the graph can keep flowi
 
 ---
 
-### `search_error_codes` (troubleshooting · stub)
+### `search_error_codes` (troubleshooting · ready)
 
 **Owner:** Troubleshooting Agent (Esteban)  
 **When:** HMI alarm / error code / symptom → diagnosis + actions.  
+**Backend:** Powered by `apps.mcp_server.rag_engine` (Qdrant Vector Database `error_codes` collection).  
 **Input:**
 
 ```json
@@ -221,7 +223,7 @@ Until `rag_engine` is live, one stub hit is returned so the graph can keep flowi
 }
 ```
 
-**Output:** `{ "stub": true, "query", "hits": [ { "code", "title", "severity", "summary", "recommended_actions" } ], "note" }`
+**Output:** `{ "query", "hits": [ { "code", "title", "severity", "summary", "recommended_actions" } ] }`
 
 Typical follow-up: call `search_manual` with the same query for procedure text.
 

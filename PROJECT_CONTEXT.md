@@ -15,29 +15,35 @@
 
 ```tree
 SDPProject/
-├── PROJECT_CONTEXT.md
+├── PROJECT_CONTEXT.md            # Business vision & domain context
+├── README.md                     # Root project guide & quickstart
 ├── .cursorrules
-├── .venv/                        # Python virtualenv (repo root)
-├── frontend/                     # React SPA — layout and stack may evolve
+├── .env.example                  # Safe env variable template
+├── documentation/                # Architecture & orchestrator documentation
+│   ├── ARCHITECTURE.md
+│   ├── ORCHESTRATOR_GUIDE.md
+│   └── ORCHESTRATOR_IMPLEMENTATION.md
+├── frontend/                     # React 19 SPA — layout, components & SSE client
 │   ├── components/               # Page-level UI (Machine, Manual, Chatbot, NavBar)
 │   ├── src/
-│   │   ├── data/                 # Static fixtures today; replace with API hooks later
-│   │   ├── hooks/                # API clients & SSE streaming (to be added)
+│   │   ├── api/                  # API client & SSE stream processor
+│   │   ├── hooks/                # React hooks (useChat)
 │   │   ├── App.tsx               # React Router routes
 │   │   └── main.tsx
 │   ├── public/                   # Static assets (manual PDFs, images)
-│   └── package.json              # Vite + React + TypeScript
-└── backend/                      # Django backend & MCP Engine
+│   └── package.json              # Vite 8 + React 19 + TypeScript
+└── Backend/                      # Django backend & MCP Engine
     ├── manage.py
-    ├── requirements.txt
     ├── config/                   # Django settings, URLs, WSGI/ASGI
     └── apps/
-        ├── core/                 # Shared utilities, logging & cost tracking (Django app)
-        ├── authentication/       # User/Customer permissions & session scoping (Django app)
-        ├── machines/             # (planned) Machine models, QR mapping, telemetry
-        ├── rag_engine/           # (planned) pgvector, embeddings, vector search
-        ├── mcp_server/           # Django app boundary; tool logic is plain Python
-        └── agents/               # Django chat API + OrchestratorPort (LangGraph / stub)
+        ├── core/                 # Shared utilities, logging & cost tracking
+        ├── authentication/       # User/Customer permissions & session scoping
+        ├── machines/             # Machine models, QR mapping, demo seeders
+        ├── mcp_server/           # MCP tool gateway & registry
+        │   ├── rag_engine/       # Qdrant Vector DB, FastEmbed search & ingestion
+        │   ├── schemas/          # Pydantic schemas per tool
+        │   └── tools/            # search_manual, search_error_codes, etc.
+        └── agents/               # Django chat API + OrchestratorPort (Stub / LangGraph)
 ```
 
 ---
@@ -46,8 +52,8 @@ SDPProject/
 
 ```
 Frontend ChatbotPage
-    ↓  POST / SSE  { customer_id, machine_serial, message }
-Django apps/agents/views.py          ← HTTP / auth / SSE only
+    ↓  POST / SSE  { machine_serial, message }
+Django apps/agents/views.py          ← HTTP / auth / SSE edge
     ↓  OrchestratorPort.run(...)
 LangGraph graph (production)         ← partner-owned planner & tool loop
   — or —
@@ -55,7 +61,7 @@ StubOrchestrator (local / CI)        ← same port; rule-based / canned replies
     ↓  tool nodes call MCP tools only
 apps/mcp_server (tools + schemas)
     ↓
-machines / rag_engine / authentication / core
+rag_engine (Qdrant Vector DB) / machines / authentication / core
 ```
 
 One customer owns many machines. Every orchestrator run and every MCP tool call must carry and re-validate `customer_id` + `machine_serial`.
@@ -65,35 +71,36 @@ One customer owns many machines. Every orchestrator run and every MCP tool call 
 ## 4. Architecture Layers
 
 ### Frontend (`frontend/`)
-- **Current stack**: Vite, React 19, TypeScript, React Router, plain CSS.
+- **Current stack**: Vite 8, React 19, TypeScript, React Router, plain CSS.
 - **Role**: Pure client. Renders machine info, manual viewer, and chat UI. No business logic or direct DB access.
-- **Evolution**: The frontend may be refactored as the Django API is wired up. Prefer incremental changes unless a broader redesign is requested.
-- **Backend integration**: Chat streams from `apps/agents/` (SSE). Machine/manual lists from `machines` / `rag_engine` APIs when available.
+- **Backend integration**: Chat streams from `apps/agents/` (SSE). Machine and auth endpoints proxied via Vite dev server (`/api` -> `http://127.0.0.1:8000`).
 
 ### Backend Django apps
 
 | App | Type | Responsibility |
 |-----|------|----------------|
 | `core` | Django-heavy | Shared utils, structured logging, token/cost tracking |
-| `authentication` | Django-heavy | Users, customers, tenant scoping, permissions |
+| `authentication` | Django-heavy | Users, customers, tenant scoping, sessions |
 | `machines` | Django-heavy | ORM models, customer → many machines, QR mapping, telemetry stubs |
-| `rag_engine` | Django-heavy | pgvector storage, embeddings, retrieval |
+| `rag_engine` (in `mcp_server`) | Python + Qdrant | Vector DB client, FastEmbed embeddings, parent-child chunk retrieval |
 | `mcp_server` | **Boundary app** | MCP tool definitions & execution; plain Python tools/schemas |
-| `agents` | **Boundary app** | Chat HTTP/SSE; **OrchestratorPort** → LangGraph or Stub |
+| `agents` | **Boundary app** | Chat HTTP/SSE edge; **OrchestratorPort** → LangGraph or Stub |
 
 ### `mcp_server` — tool layer
 
 ```tree
 apps/mcp_server/
-├── tools/           # search_manual, get_machine, list_customer_machines, create_ticket, …
+├── tools/           # search_manual, search_error_codes, get_machine_info, create_ticket, …
 ├── schemas/         # Pydantic input/output models per tool
+├── rag_engine/      # Qdrant client, FastEmbed embeddings, collections & vector search
 ├── registry.py      # Tool registration & discovery
-├── views.py         # Optional HTTP handlers
+├── scoping.py       # Ownership verification helpers
+├── views.py         # Optional HTTP debug handlers
 └── urls.py
 ```
 
-- Tools may use Django ORM in other apps; agents and LangGraph nodes must **not**.
-- Structured errors: `{"status": "error", "message": "..."}`.
+- Tools may use Django ORM or `rag_engine`; agents and LangGraph nodes must **not** query DBs directly.
+- Structured response format: `{"status": "ok", "data": {...}}` or `{"status": "error", "message": "..."}`.
 
 ### `agents` — LangGraph orchestrator (production) + stub (dev)
 
@@ -101,35 +108,34 @@ Django owns the HTTP boundary. **LangGraph** owns planning, routing, and the too
 
 ```tree
 apps/agents/
-├── views.py                    # POST /chat, SSE stream to frontend
-├── ports.py                    # OrchestratorPort protocol
-├── stub_orchestrator.py        # Dev/CI simulator (same interface)
-├── langgraph_orchestrator.py   # Thin adapter to partner LangGraph graph
-├── graphs/                     # Optional: partner graph package (or external dep)
-├── prompts/                    # Shared / partner prompts as needed
+├── views.py                          # POST /chat, SSE stream to frontend
+├── ports.py                          # OrchestratorPort protocol & chunks
+├── stub_orchestrator.py              # Dev/CI simulator (same interface)
+├── troubleshooting_service_agent.py  # Intent-driven dev agent with tool chains
+├── langgraph_orchestrator.py         # Thin adapter to partner LangGraph graph
+├── factory.py                        # Backend selector based on ORCHESTRATOR_BACKEND
 └── urls.py
 ```
 
 **OrchestratorPort (conceptual):**
 ```python
-async def run(
+def run(
     *,
     customer_id: str,
     machine_serial: str,
     message: str,
     attachments: list | None = None,
-) -> AsyncIterator[str]:  # SSE / token chunks
+) -> Iterator[OrchestratorChunk]:  # SSE / token chunks
     ...
 ```
 
 | Backend | When | Behavior |
 |---------|------|----------|
-| `StubOrchestrator` | Local / CI (`ORCHESTRATOR_BACKEND=stub`) | Canned or rule-based replies; may call 1–2 real MCP tools to exercise the stack; streams fake tokens over SSE |
+| `StubOrchestrator` | Local / CI (`ORCHESTRATOR_BACKEND=stub`) | Troubleshooting & service agent chains; calls real MCP tools (including Qdrant vector search); streams tokens over SSE |
 | `LangGraphOrchestrator` | Integration / prod (`ORCHESTRATOR_BACKEND=langgraph`) | Runs partner LangGraph graph; tool nodes call `mcp_server` only; streams graph events → SSE |
 
 - Views **never** import LangGraph nodes directly — only the port factory.
 - LangGraph tool nodes are adapters around MCP tools (same Pydantic schemas); **no raw SQL / ORM** inside the graph.
-- Partner may ship the graph inside `apps/agents/graphs/` or as a separate installable package; the adapter hides that choice.
 
 ---
 
@@ -138,7 +144,6 @@ async def run(
 - `authentication`: identity and customer tenancy.
 - `machines`: one customer → many machines (`serial_number`, model, QR token, FK to customer).
 - Chat and MCP tools are always scoped to the active `machine_serial` for that `customer_id`.
-- Frontend should eventually list the user’s fleet, then open chat in machine context (QR or selection).
 
 ---
 
@@ -156,18 +161,73 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
-**Backend** (from repo root, with `.venv` active):
+**Backend** (from `Backend/`, with `.venv` active):
 ```bash
-cd backend
+cd Backend
 # default for local: stub orchestrator
-set ORCHESTRATOR_BACKEND=stub
-python manage.py runserver   # http://127.0.0.1:8000
+export ORCHESTRATOR_BACKEND=stub   # or set ORCHESTRATOR_BACKEND=stub on Windows
+python manage.py runserver         # http://127.0.0.1:8000
 ```
 
 To exercise the partner graph when available:
 ```bash
-set ORCHESTRATOR_BACKEND=langgraph
+export ORCHESTRATOR_BACKEND=langgraph
 python manage.py runserver
 ```
 
 Requires **Node ≥ 22.12** for Vite 8. Python **3.13** with Django **6.x** in `.venv`.
+
+---
+
+## 8. Qdrant RAG Vector DB Engine
+
+The RAG (Retrieval-Augmented Generation) layer powers semantic search for manuals and error codes.
+
+Location: `Backend/apps/mcp_server/rag_engine/`
+
+Key components:
+- `client.py`: Process-wide `QdrantClient` singleton supporting server URL configuration (`QDRANT_URL`) with fallback to `:memory:` for local dev and tests.
+- `embeddings.py`: FastEmbed dense query embedding generator.
+- `collections.py`: Manages `manuals` and `error_codes` Qdrant collections.
+- `search.py`: Vector search with `machine_model` filter enforcement (tenant boundary protection) and parent-content retrieval.
+- `ingest.py`: PDF/CSV parser with parent/child text chunking pipeline.
+
+---
+
+## 9. Key Files to Understand First
+
+1. **[Backend/apps/agents/views.py](file:///home/fvelilla/sdp_project/repo/SDPArolProject/Backend/apps/agents/views.py)** — Chat HTTP API edge, session authentication, machine resolution, and SSE framing.
+2. **[Backend/apps/agents/troubleshooting_service_agent.py](file:///home/fvelilla/sdp_project/repo/SDPArolProject/Backend/apps/agents/troubleshooting_service_agent.py)** — Intent classification (`troubleshooting`, `service`, `general`), agent reasoning, and MCP tool execution chains.
+3. **[Backend/apps/mcp_server/registry.py](file:///home/fvelilla/sdp_project/repo/SDPArolProject/Backend/apps/mcp_server/registry.py)** — MCP tool specs, Pydantic schema validation, and tool invocation dispatch.
+4. **[Backend/apps/mcp_server/rag_engine/search.py](file:///home/fvelilla/sdp_project/repo/SDPArolProject/Backend/apps/mcp_server/rag_engine/search.py)** — Vector retrieval over Qdrant collections with model filtering.
+5. **[frontend/src/api/chat.ts](file:///home/fvelilla/sdp_project/repo/SDPArolProject/frontend/src/api/chat.ts)** — Frontend reader for streaming Server-Sent Events (SSE).
+6. **[frontend/src/hooks/useChat.ts](file:///home/fvelilla/sdp_project/repo/SDPArolProject/frontend/src/hooks/useChat.ts)** — React hook processing streaming chunks (`step`, `tool`, `token`, `done`).
+
+---
+
+## 10. SSE Stream Inspection
+
+The chat API streams real-time events. Inspect directly via `curl`:
+
+```bash
+curl -N -X POST http://127.0.0.1:8000/api/agents/chat/ \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Alarm E042 star-wheel jam", "machine_serial": "A3279"}'
+```
+
+Stream event types:
+- `step`: Agent reasoning or execution step indicator
+- `tool`: Invoked MCP tool envelope (`status`, `data` or `message`)
+- `token`: Assistant output text stream
+- `done`: Turn execution complete
+- `error`: Execution error notification
+
+---
+
+## 11. System Mental Model
+
+- **Frontend**: The face of the assistant (React 19 SPA, chat stream UI).
+- **Backend Edge**: The brain & controller (Django 6 HTTP, sessions, OrchestratorPort).
+- **MCP Server**: The hands & tools (Pydantic schemas, scoped tool functions).
+- **RAG Engine**: The memory (Qdrant Vector DB, FastEmbed embeddings).
+

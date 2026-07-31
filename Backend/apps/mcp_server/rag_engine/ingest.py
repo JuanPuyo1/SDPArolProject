@@ -1,39 +1,26 @@
 """
-Ingestion pipeline for the manuals collection.
+Ingestion pipeline for the manuals collection in Qdrant DB.
 
-Mirrors the notebook's parent/child hierarchical strategy:
+Extracted Markdown documents are parsed using Markdown section headers and embedded
+page markers (<!-- Page N -->) combined with hierarchical parent/child text splitting:
 
-* ``RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=150)`` for parents
-* ``RecursiveCharacterTextSplitter(chunk_size=250,  chunk_overlap=40)``  for children
+* Parent chunks: RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=150)
+* Child chunks:  RecursiveCharacterTextSplitter(chunk_size=250,  chunk_overlap=40)
 
-Each child chunk gets its own vector + payload. The payload carries the full
-parent text so the LLM sees surrounding context when the child is retrieved.
-
-Usage from a management command or a one-off script::
-
-    from apps.mcp_server.rag_engine.ingest import ingest_text
-    ingest_text(
-        text=open('manual.txt').read(),
-        metadata={
-            'machine_model': 'AROL_EURO_VP',
-            'chapter': 'Chapter 5',
-            'section': 'Section 5.2',
-            'doc_type': 'maintenance_guide',
-        },
-    )
-
-For PDF inputs, see ``apps/mcp_server/management/commands/ingest_manual.py``.
+Each child chunk is embedded with FastEmbed and stored as a Qdrant PointStruct.
+The payload preserves standard metadata: machine_model, doc_type, source, doc_id,
+page_number, parent_id, parent_content, and child_content.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Iterable
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from qdrant_client import models
 
 from .client import get_client
@@ -47,26 +34,26 @@ _PARENT_CHUNK_OVERLAP = 150
 _CHILD_CHUNK_SIZE = 250
 _CHILD_CHUNK_OVERLAP = 40
 
+_PAGE_PATTERN = re.compile(r'<!--\s*Page\s+(\d+)\s*-->', re.IGNORECASE)
+
 
 @dataclass(frozen=True)
 class IngestMetadata:
     """Per-document metadata threaded through parent/child ingestion."""
 
     machine_model: str
-    chapter: str
-    section: str
     doc_type: str = 'user_manual'
     source: str | None = None
     doc_id: str | None = None
+    page_number: int | None = None
 
     def as_payload(self) -> dict:
         return {
             'machine_model': self.machine_model,
-            'chapter': self.chapter,
-            'section': self.section,
             'doc_type': self.doc_type,
             'source': self.source,
             'doc_id': self.doc_id,
+            'page_number': self.page_number,
         }
 
 
@@ -82,18 +69,114 @@ def _splitters() -> tuple[RecursiveCharacterTextSplitter, RecursiveCharacterText
     return parent, child
 
 
-def _build_points(
+def ingest_markdown_text(
     *,
-    doc_text: str,
-    meta: IngestMetadata,
-    parent_splitter: RecursiveCharacterTextSplitter,
-    child_splitter: RecursiveCharacterTextSplitter,
-) -> list[models.PointStruct]:
-    parent_chunks = parent_splitter.split_text(doc_text)
+    markdown_text: str,
+    metadata: dict | IngestMetadata,
+) -> int:
+    """Ingest a Markdown document into Qdrant with page numbers and parent/child payloads."""
+    if not markdown_text or not markdown_text.strip():
+        return 0
+
+    base_meta = metadata if isinstance(metadata, IngestMetadata) else IngestMetadata(**metadata)
+
+    headers_to_split_on = [
+        ('#', 'h1'),
+        ('##', 'h2'),
+        ('###', 'h3'),
+    ]
+    markdown_splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=headers_to_split_on,
+        strip_headers=False,
+    )
+    section_docs = markdown_splitter.split_text(markdown_text)
+
+    parent_splitter, child_splitter = _splitters()
     all_child_texts: list[str] = []
     all_payloads: list[dict] = []
 
+    active_page: int | None = base_meta.page_number
+
+    for sec_idx, sec_doc in enumerate(section_docs):
+        sec_text = sec_doc.page_content
+
+        page_matches = _PAGE_PATTERN.findall(sec_text)
+        if page_matches:
+            active_page = int(page_matches[-1])
+
+        parent_chunks = parent_splitter.split_text(sec_text)
+        for p_idx, parent_text in enumerate(parent_chunks):
+            p_pages = _PAGE_PATTERN.findall(parent_text)
+            if p_pages:
+                active_page = int(p_pages[-1])
+
+            parent_id = f"{base_meta.machine_model}_s{sec_idx}_p{p_idx}"
+            child_chunks = child_splitter.split_text(parent_text)
+
+            for child_text in child_chunks:
+                c_pages = _PAGE_PATTERN.findall(child_text)
+                chunk_page = int(c_pages[-1]) if c_pages else active_page
+
+                payload = {
+                    'machine_model': base_meta.machine_model,
+                    'doc_type': base_meta.doc_type,
+                    'source': base_meta.source,
+                    'doc_id': base_meta.doc_id,
+                    'page_number': chunk_page,
+                    'child_content': child_text,
+                    'parent_id': parent_id,
+                    'parent_content': parent_text,
+                }
+                all_child_texts.append(child_text)
+                all_payloads.append(payload)
+
+    if not all_child_texts:
+        return 0
+
+    vectors = embed_batch(all_child_texts)
+    points = [
+        models.PointStruct(
+            id=str(uuid.uuid4()),
+            vector=vector,
+            payload=payload,
+        )
+        for vector, payload in zip(vectors, all_payloads)
+    ]
+
+    client = get_client()
+    collection = ensure_manuals_collection(client)
+    batch_size = 200
+    for i in range(0, len(points), batch_size):
+        client.upsert(collection_name=collection, points=points[i : i + batch_size])
+
+    log.info(
+        'Ingested %d Markdown child vectors for model %s from %s',
+        len(points),
+        base_meta.machine_model,
+        base_meta.source or base_meta.doc_id,
+    )
+    return len(points)
+
+
+def ingest_text(
+    *,
+    doc_text: str,
+    metadata: dict | IngestMetadata,
+) -> int:
+    """Ingest a single document string. Dispatches to Markdown parser if headers or page markers exist."""
+    if '<!-- Page' in doc_text or '#' in doc_text:
+        return ingest_markdown_text(markdown_text=doc_text, metadata=metadata)
+
+    if not doc_text or not doc_text.strip():
+        return 0
+
+    meta = metadata if isinstance(metadata, IngestMetadata) else IngestMetadata(**metadata)
+    parent_splitter, child_splitter = _splitters()
+    parent_chunks = parent_splitter.split_text(doc_text)
+    all_child_texts: list[str] = []
+    all_payloads: list[dict] = []
     base_payload = meta.as_payload()
+
     for p_idx, parent_text in enumerate(parent_chunks):
         parent_id = f"{meta.machine_model}_p{p_idx}"
         child_chunks = child_splitter.split_text(parent_text)
@@ -108,10 +191,10 @@ def _build_points(
             all_payloads.append(payload)
 
     if not all_child_texts:
-        return []
+        return 0
 
     vectors = embed_batch(all_child_texts)
-    return [
+    points = [
         models.PointStruct(
             id=str(uuid.uuid4()),
             vector=vector,
@@ -120,38 +203,11 @@ def _build_points(
         for vector, payload in zip(vectors, all_payloads)
     ]
 
-
-def ingest_text(
-    *,
-    doc_text: str,
-    metadata: dict | IngestMetadata,
-) -> int:
-    """Ingest a single plain-text document. Returns the number of child points upserted."""
-    if not doc_text or not doc_text.strip():
-        return 0
-
-    meta = metadata if isinstance(metadata, IngestMetadata) else IngestMetadata(**metadata)
-    parent_splitter, child_splitter = _splitters()
-    points = _build_points(
-        doc_text=doc_text,
-        meta=meta,
-        parent_splitter=parent_splitter,
-        child_splitter=child_splitter,
-    )
-    if not points:
-        return 0
-
     client = get_client()
     collection = ensure_manuals_collection(client)
-    client.upsert(collection_name=collection, points=points)
-
-    log.info(
-        'Ingested %d child vectors for model %s (%s / %s)',
-        len(points),
-        meta.machine_model,
-        meta.chapter,
-        meta.section,
-    )
+    batch_size = 200
+    for i in range(0, len(points), batch_size):
+        client.upsert(collection_name=collection, points=points[i : i + batch_size])
     return len(points)
 
 
@@ -161,30 +217,3 @@ def ingest_many(documents: Iterable[tuple[str, dict | IngestMetadata]]) -> int:
     for doc_text, metadata in documents:
         total += ingest_text(doc_text=doc_text, metadata=metadata)
     return total
-
-
-def ingest_pdf(*, pdf_path: str | Path, metadata: dict | IngestMetadata) -> int:
-    """Extract text from a PDF and ingest it. ``pypdf`` is used per requirements."""
-    from pypdf import PdfReader
-
-    pdf_path = Path(pdf_path)
-    if not pdf_path.exists():
-        raise FileNotFoundError(pdf_path)
-
-    reader = PdfReader(str(pdf_path))
-    pages_text = [(p.extract_text() or '') for p in reader.pages]
-    doc_text = '\n\n'.join(t for t in pages_text if t.strip())
-    if not doc_text.strip():
-        log.warning('PDF %s produced no extractable text.', pdf_path)
-        return 0
-
-    meta = metadata if isinstance(metadata, IngestMetadata) else IngestMetadata(**metadata)
-    full_meta = IngestMetadata(
-        machine_model=meta.machine_model,
-        chapter=meta.chapter,
-        section=meta.section,
-        doc_type=meta.doc_type,
-        source=meta.source or str(pdf_path),
-        doc_id=meta.doc_id or pdf_path.stem,
-    )
-    return ingest_text(doc_text=doc_text, metadata=full_meta)

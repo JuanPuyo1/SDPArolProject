@@ -414,6 +414,7 @@ When delivering the LangGraph orchestrator, confirm:
 | Attachment upload in chat API | Platform | Extend `chat_view` + port |
 | Conversation persistence | Platform | Optional `agents` models or MCP tool |
 | Token/cost logging | Platform | `apps/core` |
-| Real RAG / telemetry / tickets | Platform | Replace `stub: true` in MCP tools |
+| Real RAG Vector DB | Platform | **Done**: `search_manual` and `search_error_codes` live with Qdrant + FastEmbed |
+| Real telemetry / ticket integration | Platform | Wire remaining stub tools (`query_telemetry`, `create_ticket`, `list_spare_parts`) |
 
 The stub proves the pipes work; LangGraph replaces the **brain** without rewiring the **plumbing**.

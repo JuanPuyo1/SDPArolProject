@@ -43,13 +43,11 @@ class ManualPayload:
     """Fields stored alongside each child vector in the manuals collection."""
 
     machine_model: str
-    chapter: str
-    section: str
     doc_type: str
     child_content: str
     parent_id: str
     parent_content: str
-    page: int | None = None
+    page_number: int | None = None
     source: str | None = None
     doc_id: str | None = None
 
@@ -78,8 +76,17 @@ def error_codes_collection_name() -> str:
     return getattr(settings, 'QDRANT_COLLECTION_ERROR_CODES', ERROR_CODES_COLLECTION)
 
 
+def clear_manuals_collection(client: QdrantClient | None = None) -> str:
+    """Re-create/clear the manuals collection to remove all points."""
+    name = manuals_collection_name()
+    client = client or get_client()
+    if client.collection_exists(collection_name=name):
+        client.delete_collection(collection_name=name)
+    return ensure_manuals_collection(client)
+
+
 def ensure_manuals_collection(client: QdrantClient | None = None) -> str:
-    """Create the manuals collection (if missing) and index ``machine_model``."""
+    """Create the manuals collection (if missing) and index ``machine_model`` and ``doc_type``."""
     name = manuals_collection_name()
     client = client or get_client()
     dim = int(getattr(settings, 'EMBEDDING_DIM', 384))
@@ -93,10 +100,15 @@ def ensure_manuals_collection(client: QdrantClient | None = None) -> str:
             ),
         )
 
-    # Payload index — keep this idempotent so re-runs are safe.
+    # Payload indexes — keep these idempotent so re-runs are safe.
     client.create_payload_index(
         collection_name=name,
         field_name='machine_model',
+        field_schema=models.PayloadSchemaType.KEYWORD,
+    )
+    client.create_payload_index(
+        collection_name=name,
+        field_name='doc_type',
         field_schema=models.PayloadSchemaType.KEYWORD,
     )
     return name
