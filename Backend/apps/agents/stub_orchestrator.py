@@ -20,11 +20,15 @@ class StubOrchestrator:
         customer_id: str,
         machine_serial: str,
         message: str,
+        session_id: str,
         attachments: list[ChatAttachmentRef] | None = None,
     ) -> Iterator[OrchestratorChunk]:
+        # Dev/CI stub has no checkpointer -- session_id is accepted for
+        # interface parity with OrchestratorPort but each call is one-shot.
         yield from self._agent.run(
             customer_id=customer_id,
             machine_serial=machine_serial,
             message=message,
             attachments=attachments,
         )
+        yield OrchestratorChunk(type='done')

@@ -11,6 +11,7 @@ export type ChatChunk = {
 export type ChatRequest = {
   message: string
   machine_serial?: string
+  session_id?: string
 }
 
 export type ThinkingStepStatus = 'running' | 'done' | 'error'
@@ -30,6 +31,9 @@ const TOOL_LABELS: Record<string, string> = {
   query_telemetry: 'Telemetry query complete',
   create_ticket: 'Support ticket created',
   list_spare_parts: 'Spare parts lookup complete',
+  get_quote_history: 'Quote history loaded',
+  get_order_status: 'Order status loaded',
+  get_contract_info: 'Contract details loaded',
 }
 
 export function toolStepLabel(tool: string): string {
@@ -65,6 +69,18 @@ export function toolStepDetail(tool: string, data: unknown): string | undefined 
     if (typeof model === 'string') return model
   }
 
+  if (tool === 'get_quote_history' && Array.isArray(payload.revisions)) {
+    return `${payload.revisions.length} revision${payload.revisions.length === 1 ? '' : 's'} found`
+  }
+
+  if (tool === 'get_order_status' && Array.isArray(payload.orders)) {
+    return `${payload.orders.length} order${payload.orders.length === 1 ? '' : 's'} found`
+  }
+
+  if (tool === 'get_contract_info' && Array.isArray(payload.contracts)) {
+    return `${payload.contracts.length} contract${payload.contracts.length === 1 ? '' : 's'} found`
+  }
+
   return undefined
 }
 
@@ -95,6 +111,7 @@ export async function streamChat(
   handlers: {
     onChunk: (chunk: ChatChunk) => void
     onError?: (message: string) => void
+    onSessionId?: (sessionId: string) => void
   },
   signal?: AbortSignal,
 ): Promise<void> {
@@ -115,6 +132,11 @@ export async function streamChat(
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(data.error || `Chat request failed (${response.status})`)
+  }
+
+  const sessionId = response.headers.get('X-Session-Id')
+  if (sessionId) {
+    handlers.onSessionId?.(sessionId)
   }
 
   if (!response.body) {
