@@ -17,41 +17,46 @@ from pydantic import BaseModel, Field
 from apps.agents.agent_kit import DEFAULT_MODEL
 from apps.agents.orders_business_agent import OrdersBusinessAgent
 from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
+from apps.agents.telemetry_agent import TelemetryAgent
 from apps.agents.troubleshooting_service_agent import TroubleshootingServiceAgent
 
 
 class AgentIntent(str, Enum):
     ORDERS_BUSINESS = 'orders_business'
     TROUBLESHOOTING_SERVICE = 'troubleshooting_service'
+    TELEMETRY = 'telemetry'
 
 
 class _RouteDecision(BaseModel):
     """Structured output schema for the router LLM call."""
 
-    agent: Literal['orders_business', 'troubleshooting_service'] = Field(
+    agent: Literal['orders_business', 'troubleshooting_service', 'telemetry'] = Field(
         description=(
             "'orders_business' for quotes, order status, invoices, "
             "contracts, warranty, or pricing/purchasing questions; "
             "'troubleshooting_service' for alarms, faults, breakdowns, "
-            "diagnostics, telemetry, manual lookups, or field-service "
-            "ticket requests."
+            "diagnostics, manual lookups, or field-service ticket requests; "
+            "'telemetry' for real-time or historical sensor readings, "
+            "temperature, pressure, cycle count, operating speed, or vibration."
         ),
     )
 
 
 _ROUTER_SYSTEM_PROMPT = """Classify the user's message for AROL's customer \
-chat platform (industrial capping/filling machines) into exactly one of two \
+chat platform (industrial capping/filling machines) into exactly one of three \
 agents:
 
 - orders_business: quotes (including revision history), order status, \
 invoices, contracts, warranty, pricing/purchasing.
 - troubleshooting_service: alarms, faults, breakdowns, diagnostics, \
-telemetry, manual lookups, opening a field-service ticket.
+manual lookups, opening a field-service ticket.
+- telemetry: machine sensor readings, historical telemetry points, cycle \
+counts, temperature, pressure, vibration, or operating speed metrics.
 
 Pick whichever agent's domain the message best fits, based on its meaning \
 rather than exact keyword matches. If the message is a greeting or is \
-otherwise generic/ambiguous and doesn't clearly belong to orders_business \
-(e.g. "hi", "how can you help me?", "what can you do?"), default to \
+otherwise generic/ambiguous and doesn't clearly belong to orders_business or \
+telemetry (e.g. "hi", "how can you help me?", "what can you do?"), default to \
 troubleshooting_service -- it's the general-purpose front door for this \
 platform."""
 
@@ -86,6 +91,7 @@ class ChatState(TypedDict):
 _ROUTE_LABELS = {
     AgentIntent.ORDERS_BUSINESS: 'Routing to the Orders/Business agent…',
     AgentIntent.TROUBLESHOOTING_SERVICE: 'Routing to the Troubleshooting/Service agent…',
+    AgentIntent.TELEMETRY: 'Routing to the Telemetry agent…',
 }
 
 
@@ -126,6 +132,21 @@ def _troubleshooting_service_node(state: ChatState) -> dict:
     return {'messages': new_messages}
 
 
+def _telemetry_node(state: ChatState) -> dict:
+    writer = get_stream_writer()
+    new_messages: list[BaseMessage] = []
+    for chunk in TelemetryAgent().run(
+        customer_id=state['customer_id'],
+        machine_serial=state['machine_serial'],
+        message=state['message'],
+        attachments=state['attachments'],
+        history=state['messages'],
+        new_messages_sink=new_messages,
+    ):
+        writer(chunk)
+    return {'messages': new_messages}
+
+
 def _route(state: ChatState) -> str:
     return state['intent']
 
@@ -134,6 +155,7 @@ def _build_graph():
     graph = StateGraph(ChatState)
     graph.add_node(AgentIntent.ORDERS_BUSINESS.value, _orders_business_node)
     graph.add_node(AgentIntent.TROUBLESHOOTING_SERVICE.value, _troubleshooting_service_node)
+    graph.add_node(AgentIntent.TELEMETRY.value, _telemetry_node)
     graph.add_node('router', _router_node)
     graph.set_entry_point('router')
     graph.add_conditional_edges(
@@ -142,10 +164,12 @@ def _build_graph():
         {
             AgentIntent.ORDERS_BUSINESS.value: AgentIntent.ORDERS_BUSINESS.value,
             AgentIntent.TROUBLESHOOTING_SERVICE.value: AgentIntent.TROUBLESHOOTING_SERVICE.value,
+            AgentIntent.TELEMETRY.value: AgentIntent.TELEMETRY.value,
         },
     )
     graph.add_edge(AgentIntent.ORDERS_BUSINESS.value, END)
     graph.add_edge(AgentIntent.TROUBLESHOOTING_SERVICE.value, END)
+    graph.add_edge(AgentIntent.TELEMETRY.value, END)
     # MemorySaver keeps each thread's ChatState (including `messages`) in this
     # process's memory, keyed by the thread_id passed in run()'s config below.
     # It's per-process and resets on restart -- fine for a single-worker

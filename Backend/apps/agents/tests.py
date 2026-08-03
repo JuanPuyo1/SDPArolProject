@@ -19,6 +19,7 @@ from langchain_core.tools import tool
 from apps.agents.agent_kit import AgentTool, run_tool_calling_loop
 from apps.agents.langgraph_orchestrator import AgentIntent, LangGraphOrchestrator, classify_intent
 from apps.agents.stub_orchestrator import StubOrchestrator
+from apps.agents.telemetry_agent import TelemetryAgent
 from apps.machines.models import Machine
 
 
@@ -282,6 +283,7 @@ class StubOrchestratorTests(TestCase):
                 customer_id='demo',
                 machine_serial='A3279',
                 message='How do I adjust torque on the capping head?',
+                session_id='sess_test',
             ),
         )
 
@@ -483,3 +485,39 @@ class ChatViewTests(TestCase):
         self.assertIn('"type": "tool"', body)
         self.assertIn('"type": "step"', body)
         self.assertIn('"type": "done"', body)
+
+
+class TelemetryAgentTests(TestCase):
+    def setUp(self) -> None:
+        User = get_user_model()
+        self.user = User.objects.create_user(username='demo', password='demo')
+        _make_machine(self.user)
+
+    def test_telemetry_agent_runs_query_telemetry_tool(self) -> None:
+        llm = _ScriptedLLM(
+            [
+                _tool_call_turn('query_telemetry', {'metric': 'temperature'}),
+                _text_turn('The average operating temperature is 24°C.'),
+            ],
+        )
+        chunks = list(
+            TelemetryAgent().run(
+                customer_id='demo',
+                machine_serial='A3279',
+                message='What is the machine temperature?',
+                llm=llm,
+            ),
+        )
+
+        tool_names = [c.tool for c in chunks if c.type == 'tool']
+        self.assertIn('get_machine_info', tool_names)
+        self.assertIn('query_telemetry', tool_names)
+
+        telemetry_chunk = next(c for c in chunks if c.tool == 'query_telemetry')
+        self.assertEqual(telemetry_chunk.data['status'], 'ok')
+        self.assertEqual(telemetry_chunk.data['data']['metric'], 'temperature')
+
+        token_chunks = [c for c in chunks if c.type == 'token']
+        full_text = ''.join(c.content for c in token_chunks)
+        self.assertIn('24°C', full_text)
+
