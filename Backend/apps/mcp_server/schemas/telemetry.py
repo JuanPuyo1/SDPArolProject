@@ -32,7 +32,7 @@ class TelemetryPoint(BaseModel):
 
 
 class QueryTelemetryOutput(BaseModel):
-    stub: bool = True
+    stub: bool = False
     metric: str
     points: list[TelemetryPoint]
-    note: str = 'query_telemetry is a stub until telemetry ingestion is available.'
+    note: str = 'query_telemetry returns CSV-backed sensor telemetry data.'
