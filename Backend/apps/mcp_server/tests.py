@@ -196,7 +196,7 @@ class McpRegistryTests(TestCase):
 To adjust capping head pressure on CLOSYS EAGLE VP, turn calibration screw T-804 clockwise.
 """
         meta = IngestMetadata(
-            machine_model='CLOSYS EAGLE VP',
+            machine_serial='CLOSYS EAGLE VP',
             doc_id='test-doc-01',
             doc_type='maintenance_guide',
             source='test_manual.md',
@@ -206,7 +206,7 @@ To adjust capping head pressure on CLOSYS EAGLE VP, turn calibration screw T-804
 
         hits = rag_search.search_manuals(
             query='calibration screw T-804 pressure',
-            machine_model='CLOSYS EAGLE VP',
+            machine_serial='CLOSYS EAGLE VP',
             top_k=2,
         )
         self.assertGreaterEqual(len(hits), 1)
@@ -229,7 +229,7 @@ Always press emergency stop button before clearing bottle jam on CLOSYS EAGLE VP
         ingest_markdown_text(
             markdown_text=sample_md,
             metadata=IngestMetadata(
-                machine_model='CLOSYS EAGLE VP',
+                machine_serial='A3279',
                 doc_id='safety-doc',
                 doc_type='user_manual',
             ),
@@ -262,7 +262,7 @@ AROL designs capping machines worldwide for food and beverage packaging lines.
         ingest_markdown_text(
             markdown_text=catalogue_md,
             metadata=IngestMetadata(
-                machine_model='AROL_GENERAL',
+                machine_serial='AROL_GENERAL',
                 doc_id='catalogue-doc',
                 doc_type='general_catalogue',
             ),
@@ -270,7 +270,7 @@ AROL designs capping machines worldwide for food and beverage packaging lines.
 
         hits = rag_search.search_manuals(
             query='capping machines worldwide food beverage',
-            machine_model='CLOSYS EAGLE VP',
+            machine_serial='A3279',
             top_k=2,
         )
         self.assertGreaterEqual(len(hits), 1)

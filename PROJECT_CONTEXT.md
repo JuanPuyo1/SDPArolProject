@@ -190,7 +190,20 @@ Key components:
 - `embeddings.py`: FastEmbed dense query embedding generator.
 - `collections.py`: Manages `manuals` and `error_codes` Qdrant collections.
 - `search.py`: Vector search with `machine_model` filter enforcement (tenant boundary protection) and parent-content retrieval.
-- `ingest.py`: PDF/CSV parser with parent/child text chunking pipeline.
+- `ingest.py`: PDF/CSV/Markdown parser with parent/child text chunking pipeline.
+
+### Manual Ingestion Command (`ingest_markdown_manuals`)
+
+Extracted Markdown manuals (stored in `Data/Manuals_md/`) are ingested into Qdrant using the Django management command:
+
+```bash
+cd Backend
+python manage.py ingest_markdown_manuals
+```
+
+Options:
+- `--dir <path>`: Directory containing extracted Markdown manuals (defaults to `Data/Manuals_md`).
+- `--no-clear`: Ingest without clearing the existing `arol_manuals_fastembed` Qdrant collection.
 
 ---
 

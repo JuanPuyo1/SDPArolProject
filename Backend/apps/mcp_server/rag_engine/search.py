@@ -7,7 +7,7 @@ deeper (collection management, embeddings, ingest) stays private to this engine.
 The query path mirrors the notebook:
 
 1. embed the query with FastEmbed,
-2. filter by ``machine_model`` when supplied (the tenant boundary),
+2. filter by ``machine_serial`` when supplied (the tenant boundary),
 3. return ``parent_content`` so the LLM gets full surrounding context, not just
    the matched child chunk — this is the entire reason for the parent/child
    splitting strategy.
@@ -30,46 +30,44 @@ from .embeddings import embed_query
 log = logging.getLogger(__name__)
 
 
-def _build_machine_model_filter(machine_model: str | None) -> models.Filter | None:
-    if not machine_model:
+def _build_machine_serial_filter(
+    machine_serial: str | None = None,
+    machine_model: str | None = None,
+) -> models.Filter | None:
+    if not machine_serial and not machine_model:
         return None
-    return models.Filter(
-        should=[
-            models.FieldCondition(
-                key='machine_model',
-                match=models.MatchValue(value=machine_model),
-            ),
-            models.FieldCondition(
-                key='machine_model',
-                match=models.MatchValue(value='AROL_GENERAL'),
-            ),
-            models.FieldCondition(
-                key='doc_type',
-                match=models.MatchValue(value='general_catalogue'),
-            ),
-        ],
-    )
+    conditions = []
+    if machine_serial:
+        conditions.append(models.FieldCondition(key='machine_serial', match=models.MatchValue(value=machine_serial)))
+    if machine_model and machine_model != machine_serial:
+        conditions.append(models.FieldCondition(key='machine_serial', match=models.MatchValue(value=machine_model)))
+    conditions.append(models.FieldCondition(key='machine_serial', match=models.MatchValue(value='AROL_GENERAL')))
+    conditions.append(models.FieldCondition(key='doc_type', match=models.MatchValue(value='general_catalogue')))
+
+    return models.Filter(should=conditions)
 
 
 def search_manuals(
     *,
     query: str,
+    machine_serial: str | None = None,
     machine_model: str | None = None,
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
-    """Return ranked manual passages for ``query``, optionally scoped to a model.
+    """Return ranked manual passages for ``query``, optionally scoped to a machine serial.
 
     The MCP tool converts each returned dict into a ``ManualHit`` Pydantic model.
     """
     if not query or not query.strip():
         return []
 
+    target_serial = machine_serial or machine_model
     top_k = max(1, min(int(top_k), 20))
     client = get_client()
     collection = ensure_manuals_collection(client)
 
     vector = embed_query(query)
-    query_filter = _build_machine_model_filter(machine_model)
+    query_filter = _build_machine_serial_filter(target_serial)
     hits = client.query_points(
         collection_name=collection,
         query=vector,
@@ -80,8 +78,8 @@ def search_manuals(
 
     if not hits and query_filter is not None:
         log.info(
-            'search_manuals no filtered hits for model=%r, retrying without model filter',
-            machine_model,
+            'search_manuals no filtered hits for serial=%r, retrying without filter',
+            target_serial,
         )
         hits = client.query_points(
             collection_name=collection,
@@ -93,9 +91,10 @@ def search_manuals(
     results: list[dict[str, Any]] = []
     for hit in hits:
         payload = hit.payload or {}
+        serial_val = payload.get('machine_serial') or payload.get('machine_model', 'AROL')
         results.append(
             {
-                'title': f"{payload.get('machine_model', 'AROL')} Manual",
+                'title': f"{serial_val} Manual",
                 'excerpt': payload.get('parent_content')
                 or payload.get('child_content', ''),
                 'matched_segment': payload.get('child_content'),
@@ -107,9 +106,9 @@ def search_manuals(
             },
         )
     log.info(
-        'search_manuals q=%r model=%r hits=%d',
+        'search_manuals q=%r serial=%r hits=%d',
         query,
-        machine_model,
+        target_serial,
         len(results),
     )
     return results
@@ -118,24 +117,24 @@ def search_manuals(
 def search_error_codes(
     *,
     query: str,
+    machine_serial: str | None = None,
     machine_model: str | None = None,
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
     """Return ranked error-code entries for ``query``.
 
     The MCP tool converts each dict into an ``ErrorCodeHit`` Pydantic model.
-    Falls back to a permissive search if the troubleshooting collection is empty
-    — that way a fresh dev install still returns *something* useful.
     """
     if not query or not query.strip():
         return []
 
+    target_serial = machine_serial or machine_model
     top_k = max(1, min(int(top_k), 20))
     client = get_client()
     collection = ensure_error_codes_collection(client)
 
     vector = embed_query(query)
-    query_filter = _build_machine_model_filter(machine_model)
+    query_filter = _build_machine_serial_filter(target_serial)
     hits = client.query_points(
         collection_name=collection,
         query=vector,
@@ -146,8 +145,8 @@ def search_error_codes(
 
     if not hits and query_filter is not None:
         log.info(
-            'search_error_codes no filtered hits for model=%r, retrying without model filter',
-            machine_model,
+            'search_error_codes no filtered hits for serial=%r, retrying without filter',
+            target_serial,
         )
         hits = client.query_points(
             collection_name=collection,
@@ -173,9 +172,9 @@ def search_error_codes(
             },
         )
     log.info(
-        'search_error_codes q=%r model=%r hits=%d',
+        'search_error_codes q=%r serial=%r hits=%d',
         query,
-        machine_model,
+        target_serial,
         len(results),
     )
     return results

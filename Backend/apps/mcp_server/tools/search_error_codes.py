@@ -23,6 +23,7 @@ def search_error_codes(params: SearchErrorCodesInput) -> SearchErrorCodesOutput:
 
     raw_hits = rag_search.search_error_codes(
         query=params.query,
+        machine_serial=machine.serial_number,
         machine_model=machine.model,
         top_k=params.top_k,
     )
@@ -38,7 +39,8 @@ def search_error_codes(params: SearchErrorCodesInput) -> SearchErrorCodesOutput:
         for h in raw_hits
     ]
     log.info(
-        'search_error_codes model=%s query=%r hits=%d',
+        'search_error_codes serial=%s model=%s query=%r hits=%d',
+        machine.serial_number,
         machine.model,
         params.query,
         len(hits),

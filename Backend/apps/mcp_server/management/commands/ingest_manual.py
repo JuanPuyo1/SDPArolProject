@@ -51,9 +51,7 @@ class Command(BaseCommand):
             raise CommandError(f'PDF not found: {pdf_path}')
 
         meta = IngestMetadata(
-            machine_model=opts['model'],
-            chapter=opts['chapter'],
-            section=opts['section'],
+            machine_serial=opts['model'],
             doc_type=opts['doc_type'],
             source=str(pdf_path),
             doc_id=opts['doc_id'],

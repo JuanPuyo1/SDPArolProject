@@ -64,7 +64,7 @@ If capping torque drops below 2.0 Nm (Fault Code E-04), verify magnetic clutch w
 @dataclass(frozen=True)
 class ErrorCodeEntry:
     code: str
-    machine_model: str
+    machine_serial: str
     title: str
     severity: str
     summary: str
@@ -74,7 +74,7 @@ class ErrorCodeEntry:
 ERROR_CODES: list[ErrorCodeEntry] = [
     ErrorCodeEntry(
         code='E-04',
-        machine_model='AROL_EURO_VP',
+        machine_serial='AROL_EURO_VP',
         title='Low capping torque',
         severity='high',
         summary=(
@@ -90,7 +90,7 @@ ERROR_CODES: list[ErrorCodeEntry] = [
     ),
     ErrorCodeEntry(
         code='E-VIB-01',
-        machine_model='AROL_EURO_VIP',
+        machine_serial='AROL_EURO_VIP',
         title='Capper spindle vibration above threshold',
         severity='high',
         summary=(
@@ -127,11 +127,11 @@ class Command(BaseCommand):
         all_child_texts: list[str] = []
         all_payloads: list[dict] = []
         for doc_text, meta in (
-            (MANUAL_EURO_VIP, {'machine_model': 'AROL_EURO_VIP', 'doc_type': 'user_manual'}),
-            (MANUAL_EURO_VP,  {'machine_model': 'AROL_EURO_VP',  'doc_type': 'maintenance_guide'}),
+            (MANUAL_EURO_VIP, {'machine_serial': 'AROL_EURO_VIP', 'doc_type': 'user_manual'}),
+            (MANUAL_EURO_VP,  {'machine_serial': 'AROL_EURO_VP',  'doc_type': 'maintenance_guide'}),
         ):
             for p_idx, parent_text in enumerate(parent_splitter.split_text(doc_text)):
-                parent_id = f"{meta['machine_model']}_p{p_idx}"
+                parent_id = f"{meta['machine_serial']}_p{p_idx}"
                 for child_text in child_splitter.split_text(parent_text):
                     all_payloads.append(
                         {
@@ -169,7 +169,7 @@ class Command(BaseCommand):
                 vector=vec,
                 payload={
                     'code': e.code,
-                    'machine_model': e.machine_model,
+                    'machine_serial': e.machine_serial,
                     'title': e.title,
                     'severity': e.severity,
                     'summary': e.summary,
