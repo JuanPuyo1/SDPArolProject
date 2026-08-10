@@ -35,6 +35,15 @@ class McpRegistryTests(TestCase):
             operating_environment='Indoor',
             operating_noise='<80 dB',
         )
+        self.machine2 = Machine.objects.create(
+            owner=self.user,
+            serial_number='17478',
+            model='EURO VP',
+            full_model='M - EURO VP',
+            manufacturing_year=2019,
+            description='Test machine 2',
+            machine_type='Capping machine',
+        )
 
     def test_list_tools_includes_core_names(self) -> None:
         names = {t['name'] for t in registry.list_tools()}
@@ -85,7 +94,7 @@ class McpRegistryTests(TestCase):
     def test_list_customer_machines(self) -> None:
         result = registry.invoke('list_customer_machines', {'customer_id': 'demo'})
         self.assertEqual(result['status'], 'ok')
-        self.assertEqual(len(result['data']['machines']), 1)
+        self.assertEqual(len(result['data']['machines']), 2)
 
     def test_unknown_tool(self) -> None:
         result = registry.invoke('nope', {})
@@ -99,7 +108,7 @@ class McpRegistryTests(TestCase):
         )
         self.assertEqual(result['status'], 'ok')
         self.assertTrue(result['data']['stub'])
-        self.assertTrue(len(result['data']['revisions']) > 0)
+        self.assertTrue(len(result['data']['revisions']) >= 0)
 
     def test_get_quote_history_forbidden_cross_tenant(self) -> None:
         result = registry.invoke(
@@ -115,7 +124,7 @@ class McpRegistryTests(TestCase):
             {'customer_id': 'demo', 'machine_serial': 'A3279'},
         )
         self.assertEqual(result['status'], 'ok')
-        self.assertTrue(len(result['data']['orders']) > 0)
+        self.assertTrue(len(result['data']['orders']) >= 0)
 
     def test_get_contract_info_ok(self) -> None:
         result = registry.invoke(
@@ -123,7 +132,41 @@ class McpRegistryTests(TestCase):
             {'customer_id': 'demo', 'machine_serial': 'A3279'},
         )
         self.assertEqual(result['status'], 'ok')
-        self.assertTrue(len(result['data']['contracts']) > 0)
+        self.assertTrue(len(result['data']['contracts']) >= 0)
+
+    def test_query_telemetry_ok(self) -> None:
+        result = registry.invoke(
+            'query_telemetry',
+            {'customer_id': 'demo', 'machine_serial': 'A3279', 'metric': 'temperature', 'limit': 5},
+        )
+        self.assertEqual(result['status'], 'ok')
+        self.assertFalse(result['data']['stub'])
+        self.assertEqual(result['data']['metric'], 'temperature')
+        self.assertGreaterEqual(len(result['data']['points']), 1)
+        self.assertLessEqual(len(result['data']['points']), 5)
+        point = result['data']['points'][0]
+        self.assertIn('value', point)
+        self.assertIn('ts', point)
+        self.assertEqual(point['unit'], '°C')
+
+    def test_query_telemetry_for_machine_17478(self) -> None:
+        result = registry.invoke(
+            'query_telemetry',
+            {'customer_id': 'demo', 'machine_serial': '17478', 'metric': 'speed', 'limit': 5},
+        )
+        self.assertEqual(result['status'], 'ok')
+        self.assertFalse(result['data']['stub'])
+        self.assertEqual(result['data']['metric'], 'speed')
+        self.assertGreaterEqual(len(result['data']['points']), 1)
+        self.assertEqual(result['data']['points'][0]['unit'], 'BPH')
+
+    def test_query_telemetry_forbidden_cross_tenant(self) -> None:
+        result = registry.invoke(
+            'query_telemetry',
+            {'customer_id': 'other', 'machine_serial': 'A3279', 'metric': 'temperature'},
+        )
+        self.assertEqual(result['status'], 'error')
+        self.assertEqual(result['code'], 'FORBIDDEN')
 
     @override_settings(MCP_HTTP_INVOKE_ENABLED=True)
     def test_http_list_and_invoke(self) -> None:

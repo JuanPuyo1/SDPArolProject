@@ -124,7 +124,7 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=QueryTelemetryOutput,
         handler=query_telemetry,
         agent='telemetry',
-        status='stub',
+        status='ready',
         requires_machine_scope=True,
     ),
     'list_spare_parts': ToolSpec(

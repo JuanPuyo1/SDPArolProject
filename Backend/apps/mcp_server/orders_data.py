@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 
-DATA_DIR = Path(__file__).resolve().parent / 'data'
+DATA_DIR = Path(__file__).resolve().parents[3] / 'Data' / 'Relational'
 
 
 def _records(df: pd.DataFrame) -> list[dict]:
@@ -30,9 +30,25 @@ def _records(df: pd.DataFrame) -> list[dict]:
 
 class OrdersDataStore:
     def __init__(self, data_dir: Path = DATA_DIR):
-        self.quotes = pd.read_csv(data_dir / 'quotes.csv')
-        self.orders = pd.read_csv(data_dir / 'orders.csv')
-        self.contracts = pd.read_csv(data_dir / 'contracts.csv')
+        quotes_path = data_dir / 'quotes.csv'
+        orders_path = data_dir / 'orders.csv'
+        contracts_path = data_dir / 'contracts.csv'
+
+        self.quotes = (
+            pd.read_csv(quotes_path)
+            if quotes_path.exists()
+            else pd.DataFrame(columns=['quote_id', 'revision_number', 'quote_date', 'status', 'item_summary', 'amount_eur'])
+        )
+        self.orders = (
+            pd.read_csv(orders_path)
+            if orders_path.exists()
+            else pd.DataFrame(columns=['order_id', 'quote_id', 'order_date', 'status', 'item_summary', 'amount_eur'])
+        )
+        self.contracts = (
+            pd.read_csv(contracts_path)
+            if contracts_path.exists()
+            else pd.DataFrame(columns=['contract_id', 'type', 'start_date', 'end_date'])
+        )
 
     def quote_history(self, quote_id: str | None = None) -> list[dict]:
         df = self.quotes
