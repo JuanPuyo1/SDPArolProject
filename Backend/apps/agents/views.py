@@ -36,6 +36,8 @@ def _chunk_to_sse(chunk: OrchestratorChunk) -> str:
         payload['data'] = chunk.data
     if chunk.message:
         payload['message'] = chunk.message
+    if chunk.agent:
+        payload['agent'] = chunk.agent
     return f'data: {json.dumps(payload, default=str)}\n\n'
 
 

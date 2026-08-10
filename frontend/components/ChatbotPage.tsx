@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SyntheticEvent } from 'react'
 import ChatMessage from './ChatMessage'
 import type { ChatAttachment, ChatMessageData } from './ChatMessage'
 import { useAuth } from '../src/hooks/useAuth'
 import { useDefaultMachine } from '../src/hooks/useMachine'
 import { useChatStream } from '../src/hooks/useChat'
+import { AGENT_TABS, type AgentTabId } from '../src/api/chat'
 import './ChatbotPage.css'
 
 const ACCEPTED_TYPES = 'image/*,.txt,.text/plain,.pdf,application/pdf'
@@ -35,8 +36,23 @@ export default function ChatbotPage() {
   const [messages, setMessages] = useState<ChatMessageData[]>([])
   const [draftText, setDraftText] = useState('')
   const [draftAttachments, setDraftAttachments] = useState<ChatAttachment[]>([])
+  const [activeTab, setActiveTab] = useState<AgentTabId>('all')
   const welcomeSerialRef = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Single conversation throughout -- tabs only filter which turns are
+  // shown, they never split it into separate threads/session_ids. A user
+  // message is matched to its reply via replyToId, since the agent that
+  // answered isn't known until the router's step chunk arrives.
+  const visibleMessages = useMemo(() => {
+    if (activeTab === 'all') return messages
+    return messages.filter((message) => {
+      if (message.role === 'assistant') return !message.agent || message.agent === activeTab
+      const reply = message.replyToId ? messages.find((m) => m.id === message.replyToId) : undefined
+      return !reply || !reply.agent || reply.agent === activeTab
+    })
+  }, [messages, activeTab])
 
   useEffect(() => {
     if (!serial) return
@@ -70,14 +86,15 @@ export default function ChatbotPage() {
     if (!serial || isStreaming) return
 
     const userText = draftText.trim()
+    const assistantId = `reply-${Date.now()}`
     const userMessage: ChatMessageData = {
       id: `msg-${Date.now()}`,
       role: 'user',
       text: userText,
       attachments: draftAttachments,
+      replyToId: assistantId,
     }
 
-    const assistantId = `reply-${Date.now()}`
     setMessages((prev) => [
       ...prev,
       userMessage,
@@ -103,6 +120,9 @@ export default function ChatbotPage() {
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantId ? { ...m, thinkingSteps: steps } : m)),
           )
+        },
+        onAgent: (agent) => {
+          setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, agent } : m)))
         },
       })
       if (!reply) {
@@ -130,7 +150,7 @@ export default function ChatbotPage() {
       <div className="chatbot-page__header">
         <h1>AI Chatbot</h1>
         <p>
-          Troubleshooting &amp; Service agent
+          AROL customer platform assistant
           {serial ? (
             <>
               {' '}
@@ -146,8 +166,23 @@ export default function ChatbotPage() {
         {statusError && <p className="chatbot-page__error">{statusError}</p>}
       </div>
 
+      <div className="chatbot-page__tabs" role="tablist" aria-label="Filter replies by agent">
+        {AGENT_TABS.map((tabOption) => (
+          <button
+            key={tabOption.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tabOption.id}
+            onClick={() => setActiveTab(tabOption.id)}
+            className={`chatbot-page__tab${activeTab === tabOption.id ? ' chatbot-page__tab--active' : ''}`}
+          >
+            {tabOption.label}
+          </button>
+        ))}
+      </div>
+
       <div className="chatbot-page__messages">
-        {messages.map((message) => (
+        {visibleMessages.map((message) => (
           <ChatMessage key={message.id} message={message} />
         ))}
       </div>
@@ -178,7 +213,11 @@ export default function ChatbotPage() {
           </div>
         )}
 
-        <div className="chatbot-page__input-row">
+        <div
+          role="presentation"
+          onClick={() => textareaRef.current?.focus()}
+          className="chatbot-page__input-row"
+        >
           <button
             type="button"
             className="attach-btn"
@@ -198,6 +237,7 @@ export default function ChatbotPage() {
             onChange={(e) => handleFilesSelected(e.target.files)}
           />
           <textarea
+            ref={textareaRef}
             className="chatbot-page__textarea"
             placeholder={
               serial
@@ -215,8 +255,15 @@ export default function ChatbotPage() {
             rows={1}
             disabled={disabled}
           />
-          <button type="submit" className="btn btn--primary" disabled={disabled}>
-            Send
+          <button
+            type="submit"
+            className="chatbot-page__send"
+            disabled={disabled || (!draftText.trim() && draftAttachments.length === 0)}
+            aria-label="Send message"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
           </button>
         </div>
       </form>

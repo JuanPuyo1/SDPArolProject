@@ -5,6 +5,23 @@ from django.test import Client, TestCase, override_settings
 
 from apps.machines.models import Machine
 from apps.mcp_server import registry
+from apps.mcp_server.rag_engine.client import reset_client
+
+
+def _use_in_memory_qdrant(test_case: TestCase) -> None:
+    """Point rag_engine's Qdrant client singleton at an isolated in-process
+    instance for the duration of one test, instead of the real (shared,
+    possibly production) settings.QDRANT_URL.
+
+    get_client() caches its client on first use, so overriding QDRANT_URL
+    alone doesn't help once a real client is already cached -- reset_client()
+    must run *after* the override takes effect (hence this being called from
+    inside the test body, not a class-level decorator) so the next
+    get_client() call rebuilds against ':memory:'. Also resets on teardown so
+    a later test/process doesn't inherit a client stuck on ':memory:'.
+    """
+    reset_client()
+    test_case.addCleanup(reset_client)
 
 
 class McpRegistryTests(TestCase):
@@ -140,9 +157,12 @@ class McpRegistryTests(TestCase):
         self.assertEqual(invoked.status_code, 200)
         self.assertEqual(invoked.json()['data']['echo'], 'http')
 
+    @override_settings(QDRANT_URL=':memory:')
     def test_markdown_ingestion_and_payload_consistency(self) -> None:
         from apps.mcp_server.rag_engine.ingest import IngestMetadata, ingest_markdown_text
         from apps.mcp_server.rag_engine import search as rag_search
+
+        _use_in_memory_qdrant(self)
 
         sample_md = """<!-- Page 10 -->
 
@@ -172,8 +192,11 @@ To adjust capping head pressure on CLOSYS EAGLE VP, turn calibration screw T-804
         self.assertEqual(first['page_number'], 10)
         self.assertIn('CLOSYS EAGLE VP', first['title'])
 
+    @override_settings(QDRANT_URL=':memory:')
     def test_search_manual_with_markdown_payloads(self) -> None:
         from apps.mcp_server.rag_engine.ingest import IngestMetadata, ingest_markdown_text
+
+        _use_in_memory_qdrant(self)
 
         sample_md = """<!-- Page 14 -->
 
@@ -206,9 +229,12 @@ Always press emergency stop button before clearing bottle jam on CLOSYS EAGLE VP
         self.assertGreaterEqual(len(hits), 1)
         self.assertEqual(hits[0]['page_number'], 14)
 
+    @override_settings(QDRANT_URL=':memory:')
     def test_general_catalogue_reachable_across_all_models(self) -> None:
         from apps.mcp_server.rag_engine.ingest import IngestMetadata, ingest_markdown_text
         from apps.mcp_server.rag_engine import search as rag_search
+
+        _use_in_memory_qdrant(self)
 
         catalogue_md = """# AROL GENERAL CATALOGUE
 

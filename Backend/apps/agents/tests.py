@@ -274,20 +274,6 @@ class StubOrchestratorTests(TestCase):
         )
         self.assertEqual([c.type for c in chunks], ['step', 'tool', 'error', 'done'])
 
-    @override_settings(ANTHROPIC_API_KEY='')
-    def test_manual_queries_trigger_search_manual_tool(self) -> None:
-        orchestrator = StubOrchestrator()
-        chunks = list(
-            orchestrator.run(
-                customer_id='demo',
-                machine_serial='A3279',
-                message='How do I adjust torque on the capping head?',
-            ),
-        )
-
-        tool_names = [c.tool for c in chunks if c.type == 'tool']
-        self.assertIn('search_manual', tool_names)
-
 
 class LangGraphOrchestratorTests(TransactionTestCase):
     """TransactionTestCase, not TestCase: LangGraph dispatches node execution
@@ -328,9 +314,16 @@ class LangGraphOrchestratorTests(TransactionTestCase):
             ),
             AgentIntent.TROUBLESHOOTING_SERVICE,
         )
+        self.assertEqual(
+            classify_intent(
+                'How do I adjust torque on the capping head?',
+                llm=_RecordingRouterLLM('manuals'),
+            ),
+            AgentIntent.MANUALS,
+        )
 
         last_call_texts = [getattr(m, 'content', '') for m in seen_messages[-1]]
-        self.assertTrue(any('Alarm E042 star-wheel jam' in t for t in last_call_texts))
+        self.assertTrue(any('adjust torque on the capping head' in t for t in last_call_texts))
 
     def test_routes_business_message_to_orders_business_agent(self) -> None:
         llm = _ScriptedLLM(
@@ -357,6 +350,8 @@ class LangGraphOrchestratorTests(TransactionTestCase):
 
         step_labels = [c.content for c in chunks if c.type == 'step']
         self.assertTrue(any('Orders/Business' in s for s in step_labels))
+        router_step = next(c for c in chunks if c.type == 'step' and c.agent)
+        self.assertEqual(router_step.agent, 'orders_business')
 
         tool_names = [c.tool for c in chunks if c.type == 'tool']
         self.assertIn('get_order_status', tool_names)
@@ -387,9 +382,43 @@ class LangGraphOrchestratorTests(TransactionTestCase):
 
         step_labels = [c.content for c in chunks if c.type == 'step']
         self.assertTrue(any('Troubleshooting/Service' in s for s in step_labels))
+        router_step = next(c for c in chunks if c.type == 'step' and c.agent)
+        self.assertEqual(router_step.agent, 'troubleshooting_service')
 
         tool_names = [c.tool for c in chunks if c.type == 'tool']
         self.assertIn('search_error_codes', tool_names)
+        self.assertEqual(chunks[-1].type, 'done')
+
+    def test_routes_manual_message_to_manuals_agent(self) -> None:
+        llm = _ScriptedLLM(
+            [
+                _tool_call_turn('search_manual', {'query': 'torque adjustment capping head'}),
+                _text_turn('Section 4.2 covers torque adjustment on the capping head.'),
+            ],
+        )
+        with (
+            patch(
+                'apps.agents.langgraph_orchestrator.build_router_llm',
+                return_value=_FakeRouterLLM('manuals'),
+            ),
+            patch('apps.agents.manuals_agent.build_llm', return_value=llm),
+        ):
+            chunks = list(
+                LangGraphOrchestrator().run(
+                    customer_id='demo',
+                    machine_serial='A3279',
+                    message='How do I adjust torque on the capping head?',
+                    session_id='session-1',
+                ),
+            )
+
+        step_labels = [c.content for c in chunks if c.type == 'step']
+        self.assertTrue(any('Manuals' in s for s in step_labels))
+        router_step = next(c for c in chunks if c.type == 'step' and c.agent)
+        self.assertEqual(router_step.agent, 'manuals')
+
+        tool_names = [c.tool for c in chunks if c.type == 'tool']
+        self.assertIn('search_manual', tool_names)
         self.assertEqual(chunks[-1].type, 'done')
 
     def test_second_turn_on_same_session_sees_first_turns_history(self) -> None:

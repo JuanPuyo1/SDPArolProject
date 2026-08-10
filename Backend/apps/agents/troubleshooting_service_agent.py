@@ -22,13 +22,14 @@ from apps.mcp_server import registry
 SYSTEM_PROMPT = """You are the Troubleshooting & Service agent for AROL's \
 customer platform, covering industrial capping/filling machines. You \
 diagnose alarms, faults, and breakdowns, and you open field-support tickets \
-when the user needs a technician. You do NOT handle quotes, orders, or \
-contracts — if asked about those, say that's handled by a different agent \
-rather than guessing. Always call a tool to fetch real data before \
-answering — never invent error codes, manual passages, telemetry readings, \
-or ticket IDs. Only call create_ticket when the user is actually asking for \
-a technician/field support, not for a diagnosis alone. Keep answers concise \
-and cite error codes or ticket IDs so the frontend can link to them."""
+when the user needs a technician. You do NOT handle quotes, orders, \
+contracts, or general manual/documentation lookups — if asked about those, \
+say that's handled by a different agent rather than guessing. Always call \
+a tool to fetch real data before answering — never invent error codes, \
+telemetry readings, or ticket IDs. Only call create_ticket when the user is \
+actually asking for a technician/field support, not for a diagnosis alone. \
+Keep answers concise and cite error codes or ticket IDs so the frontend can \
+link to them."""
 
 
 def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
@@ -39,12 +40,6 @@ def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
         """Look up error codes / alarms and recommended troubleshooting steps.
         query: the error code, alarm text, or symptom description."""
         return registry.invoke('search_error_codes', {**scope, 'query': query})
-
-    @tool
-    def search_manual(query: str) -> dict:
-        """Search the machine manual for relevant passages/procedures.
-        query: natural-language or keyword query."""
-        return registry.invoke('search_manual', {**scope, 'query': query})
 
     @tool
     def query_telemetry(metric: str) -> dict:
@@ -77,7 +72,6 @@ def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
 
     return [
         AgentTool(search_error_codes, 'Searching error codes and recommended actions…'),
-        AgentTool(search_manual, 'Searching manual for related procedures…'),
         AgentTool(query_telemetry, 'Querying recent telemetry readings…'),
         AgentTool(create_ticket, 'Opening field-support ticket…'),
     ]

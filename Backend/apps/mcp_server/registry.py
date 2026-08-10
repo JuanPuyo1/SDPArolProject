@@ -113,7 +113,7 @@ _TOOLS: dict[str, ToolSpec] = {
         input_model=SearchManualInput,
         output_model=SearchManualOutput,
         handler=search_manual,
-        agent='shared',
+        agent='manuals',
         status='ready',
         requires_machine_scope=True,
     ),

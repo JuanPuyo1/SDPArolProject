@@ -14,6 +14,9 @@ type UseChatStreamOptions = {
 type SendMessageOptions = {
   onToken?: (token: string, fullText: string) => void
   onThinkingSteps?: (steps: ThinkingStep[]) => void
+  // Fired once the router's first `step` chunk reports which agent will
+  // handle this turn. Never fires under the stub backend (no router).
+  onAgent?: (agent: string) => void
 }
 
 type UseChatStreamResult = {
@@ -31,17 +34,32 @@ function nextStepId(): string {
   return `step-${stepCounter}`
 }
 
+/** Flip any still-`running` step to `done`/`error`, stamping durationMs from
+ * its startedAt. Shared by every branch below that supersedes or closes out
+ * a running step, so elapsed-time tracking stays in one place. */
+function settleRunning(
+  steps: ThinkingStep[],
+  status: 'done' | 'error',
+  now: number,
+): ThinkingStep[] {
+  return steps.map((step) =>
+    step.status === 'running'
+      ? { ...step, status, durationMs: step.startedAt ? now - step.startedAt : undefined }
+      : step,
+  )
+}
+
 function applyChunk(steps: ThinkingStep[], chunk: ChatChunk): ThinkingStep[] {
+  const now = Date.now()
+
   if (chunk.type === 'step' && chunk.content) {
-    const running = steps.map((step) =>
-      step.status === 'running' ? { ...step, status: 'done' as const } : step,
-    )
     return [
-      ...running,
+      ...settleRunning(steps, 'done', now),
       {
         id: nextStepId(),
         label: chunk.content,
         status: 'running',
+        startedAt: now,
       },
     ]
   }
@@ -51,24 +69,17 @@ function applyChunk(steps: ThinkingStep[], chunk: ChatChunk): ThinkingStep[] {
     const label = toolStepLabel(chunk.tool)
     const envelope = chunk.data as { status?: string; message?: string } | undefined
     const isError = envelope?.status === 'error'
+    const resolvedStatus = isError ? ('error' as const) : ('done' as const)
 
-    let updated = steps.map((step) =>
-      step.status === 'running' ? { ...step, status: 'done' as const } : step,
-    )
+    const updated = settleRunning(steps, resolvedStatus, now)
 
-    const existingIndex = updated.findIndex((step) => step.tool === chunk.tool && step.status === 'done')
+    const existingIndex = updated.findIndex((step) => step.tool === chunk.tool && step.status === resolvedStatus)
     if (existingIndex >= 0) {
-      updated = updated.map((step, index) =>
+      return updated.map((step, index) =>
         index === existingIndex
-          ? {
-              ...step,
-              label,
-              detail: detail ?? step.detail,
-              status: isError ? 'error' : 'done',
-            }
+          ? { ...step, label, detail: detail ?? step.detail, status: resolvedStatus }
           : step,
       )
-      return updated
     }
 
     return [
@@ -76,7 +87,7 @@ function applyChunk(steps: ThinkingStep[], chunk: ChatChunk): ThinkingStep[] {
       {
         id: nextStepId(),
         label,
-        status: isError ? 'error' : 'done',
+        status: resolvedStatus,
         tool: chunk.tool,
         detail: isError ? envelope?.message : detail,
       },
@@ -84,9 +95,7 @@ function applyChunk(steps: ThinkingStep[], chunk: ChatChunk): ThinkingStep[] {
   }
 
   if (chunk.type === 'error') {
-    return steps.map((step) =>
-      step.status === 'running' ? { ...step, status: 'error' as const } : step,
-    )
+    return settleRunning(steps, 'error', now)
   }
 
   return steps
@@ -141,6 +150,10 @@ export function useChatStream({ machineSerial }: UseChatStreamOptions): UseChatS
                 options?.onToken?.(chunk.content, assistantText)
               }
 
+              if (chunk.type === 'step' && chunk.agent) {
+                options?.onAgent?.(chunk.agent)
+              }
+
               if (chunk.type === 'step' || chunk.type === 'tool' || chunk.type === 'error') {
                 thinkingSteps = applyChunk(thinkingSteps, chunk)
                 options?.onThinkingSteps?.([...thinkingSteps])
@@ -154,9 +167,7 @@ export function useChatStream({ machineSerial }: UseChatStreamOptions): UseChatS
           controller.signal,
         )
 
-        thinkingSteps = thinkingSteps.map((step) =>
-          step.status === 'running' ? { ...step, status: 'done' as const } : step,
-        )
+        thinkingSteps = settleRunning(thinkingSteps, 'done', Date.now())
         options?.onThinkingSteps?.([...thinkingSteps])
 
         return assistantText.trim()
@@ -166,7 +177,7 @@ export function useChatStream({ machineSerial }: UseChatStreamOptions): UseChatS
         }
         const message = err instanceof Error ? err.message : 'Chat stream failed.'
         setError(message)
-        throw new Error(message)
+        throw new Error(message, { cause: err })
       } finally {
         if (abortRef.current === controller) {
           abortRef.current = null
