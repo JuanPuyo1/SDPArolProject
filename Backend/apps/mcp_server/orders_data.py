@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 
-DATA_DIR = Path(__file__).resolve().parent / 'data'
+DATA_DIR = Path(__file__).resolve().parents[3] / 'Data' / 'Relational'
 
 
 def _records(df: pd.DataFrame) -> list[dict]:
