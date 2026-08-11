@@ -1,3 +1,4 @@
+from .manuals import resolve_manual_url
 from .models import Machine, MachineUnit
 
 
@@ -41,6 +42,7 @@ def machine_to_dict(machine: Machine) -> dict:
         'configurationProfile': machine.configuration_profile,
         'plcFamily': machine.plc_family,
         'softwareVersion': machine.software_version or None,
+        'manualUrl': resolve_manual_url(machine.serial_number),
         'model': _machine_model_to_dict(machine.model),
         'company': _company_to_dict(machine.company),
         'mainUnits': [

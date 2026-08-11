@@ -138,6 +138,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+
 # MCP debug HTTP invoke (POST /api/mcp/tools/<name>/invoke/).
 # Keep True for local/partner integration; set False in production.
 MCP_HTTP_INVOKE_ENABLED = DEBUG
