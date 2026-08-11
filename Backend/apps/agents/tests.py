@@ -20,7 +20,10 @@ from apps.agents.agent_kit import AgentTool, run_tool_calling_loop
 from apps.agents.langgraph_orchestrator import AgentIntent, LangGraphOrchestrator, classify_intent
 from apps.agents.stub_orchestrator import StubOrchestrator
 from apps.agents.telemetry_agent import TelemetryAgent
-from apps.machines.models import Machine
+from datetime import date
+
+from apps.core.models import Company
+from apps.machines.models import Machine, MachineModel
 
 
 def _tool_call_turn(name: str, args: dict, call_id: str = 'call_1') -> list[AIMessageChunk]:
@@ -67,28 +70,40 @@ class _FakeRouterLLM:
 
 
 def _make_machine(owner) -> Machine:
+    company = owner.company
+    if company is None:
+        company = Company.objects.create(
+            company_id=f'CMP-{owner.username.upper()}',
+            company_name=f'{owner.username} Co',
+            country='Italy',
+            sector='Beverage',
+            city='Novara',
+            currency='EUR',
+            locale='it-IT',
+        )
+        owner.company = company
+        owner.save(update_fields=['company'])
+
+    machine_model, _ = MachineModel.objects.get_or_create(
+        model_id='MDL-AGENT-TEST',
+        defaults={
+            'model_code': 'CLOSYS EAGLE VP',
+            'description': 'Test machine',
+            'nominal_heads': 1,
+            'container_type': 'PET bottles',
+            'cap_type': 'Plastic screw cap',
+            'industry_segment': 'Beverage',
+        },
+    )
     return Machine.objects.create(
-        owner=owner,
+        machine_id=f'MCH-{owner.username.upper()}',
+        company=company,
+        model=machine_model,
         serial_number='A3279',
-        model='CLOSYS EAGLE VP',
-        full_model='M - CLOSYS EAGLE VP',
-        manufacturing_year=2014,
-        description='Test machine',
-        machine_type='Capping machine',
-        pitch_diameter='550 mm',
-        heads=1,
-        rotation='Clockwise',
-        weight_value='350',
-        productive_capacity_value='1800',
-        electrical_main_supply='575 V',
-        electrical_auxiliary_supply='24 V',
-        electrical_total_installed_power='2.24 kW',
-        pneumatic_sterile_air_capacity='n/a',
-        pneumatic_min_pressure='6 bar',
-        pneumatic_max_pressure='8 bar',
-        operating_temperature='5-40 C',
-        operating_environment='Indoor',
-        operating_noise='<80 dB',
+        delivery_date=date(2014, 1, 1),
+        plant_location='Test Plant',
+        configuration_profile='Test config',
+        plc_family='SIEMENS-SIMATIC-S7',
     )
 
 

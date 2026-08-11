@@ -54,9 +54,12 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.authentication',
     'apps.machines',
+    'apps.quotes',
     'apps.mcp_server',
     'apps.agents',
 ]
+
+AUTH_USER_MODEL = 'authentication.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

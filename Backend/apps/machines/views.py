@@ -11,7 +11,14 @@ def _json_error(message: str, status: int = 400) -> JsonResponse:
 
 
 def _owned_queryset(request: HttpRequest):
-    return Machine.objects.filter(owner=request.user).prefetch_related('main_units')
+    company_id = getattr(request.user, 'company_id', None)
+    if not company_id:
+        return Machine.objects.none()
+    return (
+        Machine.objects.filter(company_id=company_id)
+        .select_related('model', 'company')
+        .prefetch_related('main_units')
+    )
 
 
 @require_GET
@@ -37,7 +44,7 @@ def machine_detail(request: HttpRequest, serial_number: str) -> JsonResponse:
 @require_GET
 def machine_default(request: HttpRequest) -> JsonResponse:
     """
-    Return the first machine owned by the current user.
+    Return the first machine owned by the current user's company.
     Used by the frontend Machine / Manual pages until multi-machine pickers exist.
     """
     if not request.user.is_authenticated:

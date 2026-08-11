@@ -39,13 +39,20 @@ def _chunk_to_sse(chunk: OrchestratorChunk) -> str:
     return f'data: {json.dumps(payload, default=str)}\n\n'
 
 
+def _owned_machines(request: HttpRequest):
+    company_id = getattr(request.user, 'company_id', None)
+    if not company_id:
+        return Machine.objects.none()
+    return Machine.objects.filter(company_id=company_id)
+
+
 def _resolve_machine_serial(request: HttpRequest, body: dict) -> str | None:
+    qs = _owned_machines(request)
     serial = (body.get('machine_serial') or '').strip()
     if serial:
-        owned = Machine.objects.filter(owner=request.user, serial_number=serial).exists()
-        return serial if owned else None
+        return serial if qs.filter(serial_number=serial).exists() else None
 
-    machine = Machine.objects.filter(owner=request.user).order_by('serial_number').first()
+    machine = qs.order_by('serial_number').first()
     return machine.serial_number if machine else None
 
 

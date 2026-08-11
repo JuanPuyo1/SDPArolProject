@@ -1,15 +1,21 @@
 """
-Seed the CLOSYS EAGLE VP (A3279) machine record for a given user.
+Seed a demo machine record for a given user.
+
+Prefer loading the full fleet dataset instead:
+  ..\\.venv\\Scripts\\python.exe initiliaze_database.py
 
 Usage:
   python manage.py seed_demo_machine
-  python manage.py seed_demo_machine --username demo
+  python manage.py seed_demo_machine --username USR-001
 """
+
+from datetime import date
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.machines.models import Machine, MachineUnit
+from apps.core.models import Company
+from apps.machines.models import Machine, MachineModel, MachineUnit
 
 A3279_UNITS = [
     {'code': 'A', 'name': 'Caps sorter', 'note': 'Centrifugal sorter feeding oriented caps into the chute.', 'sort_order': 1},
@@ -23,90 +29,68 @@ A3279_UNITS = [
 
 
 class Command(BaseCommand):
-    help = 'Seed the A3279 CLOSYS EAGLE VP machine for a demo user'
+    help = 'Seed a demo machine for a user with a company assignment'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--username',
             default='demo',
-            help='Username that will own the seeded machine (default: demo)',
+            help='Username or user_id that belongs to a company (default: demo)',
         )
 
     def handle(self, *args, **options):
         User = get_user_model()
         username = options['username']
-        try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist as exc:
+        user = User.objects.filter(username=username).first() or User.objects.filter(user_id=username).first()
+        if user is None:
             raise CommandError(
-                f'User "{username}" not found. Create it first '
-                f'(e.g. createsuperuser or the demo login user).'
-            ) from exc
+                f'User "{username}" not found. Run initiliaze_database.py or create a user first.'
+            )
+        if user.company_id is None:
+            company, _ = Company.objects.get_or_create(
+                company_id='CMP-DEMO',
+                defaults={
+                    'company_name': 'Demo Company',
+                    'country': 'Italy',
+                    'sector': 'Beverage',
+                    'city': 'Novara',
+                    'currency': 'EUR',
+                    'locale': 'it-IT',
+                },
+            )
+            user.company = company
+            user.save(update_fields=['company'])
+
+        machine_model, _ = MachineModel.objects.get_or_create(
+            model_id='MDL-DEMO',
+            defaults={
+                'model_code': 'CLOSYS EAGLE VP',
+                'description': 'Single-head automatic turret for pre-threaded plastic screw caps',
+                'nominal_heads': 1,
+                'container_type': 'PET bottles',
+                'cap_type': 'Pre-threaded plastic screw cap',
+                'industry_segment': 'Beverage',
+            },
+        )
 
         machine, created = Machine.objects.update_or_create(
             serial_number='A3279',
             defaults={
-                'owner': user,
-                'qr_token': 'A3279-qr',
-                'model': 'CLOSYS EAGLE VP',
-                'full_model': 'M - CLOSYS EAGLE VP',
-                'manufacturing_year': 2014,
-                'manufacturer': 'AROL S.p.A.',
-                'site': 'Canelli (AT), Italy',
-                'description': (
-                    'The CLOSYS EAGLE VP is a single-head capping machine that applies '
-                    'pre-threaded (screw) caps to rigid preformed containers. Caps arriving '
-                    'from the caps sorter are driven by a caps chute to the distribution head, '
-                    'picked up and transferred under the capping head, then applied to containers '
-                    'by screwing as the star-wheel carries them through on the transfer belt.'
-                ),
-                'machine_type': 'Capping machine (screw caps)',
-                'pitch_diameter': '550 mm',
-                'heads': 1,
-                'rotation': 'Clockwise',
-                'manual_revision': '01',
-                'manual_date': '06/2014',
-                'manual_url': '/manual/A3279-use-and-maintenance.pdf',
-                'weight_value': '350',
-                'weight_unit': 'kg',
-                'productive_capacity_value': '1,800',
-                'productive_capacity_unit': 'pcs/h',
-                'electrical_main_supply': '575 V ~ / 60 Hz',
-                'electrical_auxiliary_supply': '24 V =',
-                'electrical_total_installed_power': '2.24 kW',
-                'electrical_breakdown': [
-                    {'label': 'Electric board', 'value': '0.40 kW'},
-                    {'label': 'Machine rotation main motor', 'value': '1.10 kW'},
-                    {'label': 'Caps sorter motor', 'value': '0.37 kW'},
-                    {'label': 'Head rotation motor', 'value': '0.37 kW'},
-                ],
-                'pneumatic_sterile_air_capacity': '~400 Nl/min',
-                'pneumatic_min_pressure': '6 bar',
-                'pneumatic_max_pressure': '8 bar',
-                'operating_temperature': '5 °C to 40 °C',
-                'operating_environment': (
-                    'Ventilated, well-lit closed environment. '
-                    'Not suitable for explosive atmospheres.'
-                ),
-                'operating_noise': (
-                    'Below 80 dB(A) Leq at nominal production '
-                    '(measured 74-79 dB(A) across 4 points, ISO 4871).'
-                ),
-                'certifications': [
-                    'CE',
-                    'Directive 2006/42/EC (Machinery)',
-                    'Directive 2004/108/EC (EMC)',
-                ],
+                'machine_id': 'MCH-DEMO',
+                'company': user.company,
+                'model': machine_model,
+                'delivery_date': date(2014, 1, 1),
+                'plant_location': 'Demo Plant - Line 1',
+                'configuration_profile': 'Demo single-head turret / 3000 bph',
+                'plc_family': 'SIEMENS-SIMATIC-S7',
+                'software_version': '2.3.1',
             },
         )
 
-        machine.main_units.all().delete()
+        MachineUnit.objects.filter(machine=machine).delete()
         MachineUnit.objects.bulk_create([
             MachineUnit(machine=machine, **unit) for unit in A3279_UNITS
         ])
 
-        action = 'Created' if created else 'Updated'
-        self.stdout.write(self.style.SUCCESS(
-            f'{action} machine A3279 for user "{username}" '
-            f'({machine.main_units.count()} units).'
-        ))
+        verb = 'Created' if created else 'Updated'
+        self.stdout.write(self.style.SUCCESS(f'{verb} machine A3279 for user {user.username}'))
