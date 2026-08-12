@@ -1,14 +1,6 @@
-export type AuthUser = {
-  id: number
-  username: string
-  email: string
-  first_name: string
-  last_name: string
-  full_name: string
-  is_staff: boolean
-  date_joined: string
-  last_login: string | null
-}
+import type { AuthUser } from '../types/auth'
+
+export type { AuthUser, UserVisibility } from '../types/auth'
 
 type AuthResponse = {
   user: AuthUser

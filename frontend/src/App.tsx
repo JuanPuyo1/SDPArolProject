@@ -5,7 +5,10 @@ import ManualPage from '../components/ManualPage'
 import ChatbotPage from '../components/ChatbotPage'
 import WelcomePage from '../components/WelcomePage'
 import ProfilePage from '../components/ProfilePage'
+import OrdersPage from '../components/OrdersPage'
+import MaintenanceTicketsPage from '../components/MaintenanceTicketsPage'
 import ProtectedRoute from '../components/ProtectedRoute'
+import VisibilityRoute from '../components/VisibilityRoute'
 import { useAuth } from './hooks/useAuth'
 import './App.css'
 
@@ -33,6 +36,22 @@ function AppShell() {
               <ProtectedRoute>
                 <ManualPage />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              <VisibilityRoute allowed={['full', 'commercial']}>
+                <OrdersPage />
+              </VisibilityRoute>
+            }
+          />
+          <Route
+            path="/maintenance"
+            element={
+              <VisibilityRoute allowed={['full', 'technician']}>
+                <MaintenanceTicketsPage />
+              </VisibilityRoute>
             }
           />
           <Route
