@@ -177,6 +177,36 @@ python manage.py runserver
 
 Requires **Node ≥ 22.12** for Vite 8. Python **3.13** with Django **6.x** in `.venv`.
 
+--
+## 7.1 update db
+
+install Dbeaver 
+create a new connection
+Host: localhost
+Port: 5432
+Database: postgres
+Username: postgres
+Password: the password you set when installing PostgreSQL
+
+then sql new script
+
+Run only this first:
+CREATE USER arol WITH PASSWORD 'arol';
+
+Then run only this line by itself (highlight it → Ctrl+Enter):
+CREATE DATABASE arol OWNER arol;
+
+Then run:
+GRANT ALL PRIVILEGES ON DATABASE arol TO arol;
+
+
+## 7.2
+
+Cd Backend
+Remove-Item db.sqlite3 -ErrorAction SilentlyContinue
+python manage.py migrate
+py initiliaze_database.py
+
 ---
 
 ## 8. Qdrant RAG Vector DB Engine
