@@ -1,5 +1,5 @@
 from .manuals import resolve_manual_url
-from .models import Machine, MachineUnit
+from .models import Machine, MachineUnit, MaintenanceTicket
 
 
 def _machine_model_to_dict(model) -> dict:
@@ -64,4 +64,19 @@ def machine_summary_to_dict(machine: Machine) -> dict:
         'deliveryDate': machine.delivery_date.isoformat(),
         'plantLocation': machine.plant_location,
         'industrySegment': machine.model.industry_segment,
+    }
+
+
+def maintenance_ticket_to_dict(ticket: MaintenanceTicket) -> dict:
+    return {
+        'ticketId': ticket.ticket_id,
+        'machineId': ticket.machine_id,
+        'serialNumber': ticket.machine.serial_number,
+        'plantLocation': ticket.machine.plant_location,
+        'alarmId': ticket.alarm_id,
+        'ticketType': ticket.ticket_type,
+        'ticketStatus': ticket.ticket_status,
+        'priority': ticket.priority,
+        'createdDate': ticket.created_date.isoformat(),
+        'ownerRole': ticket.owner_role,
     }
