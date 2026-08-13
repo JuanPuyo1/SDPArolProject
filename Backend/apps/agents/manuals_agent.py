@@ -13,11 +13,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from langchain_core.messages import BaseMessage
-from langchain_core.tools import tool
 
-from apps.agents.agent_kit import AgentTool, build_llm, load_machine_context, run_tool_calling_loop
+from apps.agents.agent_kit import AgentTool, build_agent_tools, build_llm, load_machine_context, run_tool_calling_loop
 from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
-from apps.mcp_server import registry
+
+_STEP_LABELS = {'search_manual': 'Searching manual for related procedures…'}
 
 SYSTEM_PROMPT = """You are the Manuals agent for AROL's customer platform, \
 covering industrial capping/filling machines. You answer questions about \
@@ -32,18 +32,12 @@ frontend can link to them."""
 
 
 def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
-    scope = {'customer_id': customer_id, 'machine_serial': machine_serial}
-
-    @tool
-    def search_manual(query: str) -> dict:
-        """Search the machine's use-and-maintenance manual and technical
-        documentation for relevant passages or procedures.
-        query: natural-language or keyword query."""
-        return registry.invoke('search_manual', {**scope, 'query': query})
-
-    return [
-        AgentTool(search_manual, 'Searching manual for related procedures…'),
-    ]
+    return build_agent_tools(
+        'manuals',
+        customer_id=customer_id,
+        machine_serial=machine_serial,
+        step_labels=_STEP_LABELS,
+    )
 
 
 class ManualsAgent:

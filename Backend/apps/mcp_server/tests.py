@@ -261,3 +261,60 @@ AROL designs capping machines worldwide for food and beverage packaging lines.
             any('AROL_GENERAL' in h['title'] or h['doc_type'] == 'general_catalogue' for h in hits)
         )
 
+
+class ToolStatusTests(TestCase):
+    """ToolSpec.status is derived from whether the tool's Output model
+    declares a `stub` field (see ToolSpec.status), not hand-set -- so there
+    is nothing left to drift between the registry's status and what a
+    tool's own response payload claims about itself. These tests are the
+    audit: each entry documents *why* a given tool is ready or still a
+    stub, and catches a future tool silently landing on the wrong side
+    (e.g. someone wires get_order_status to a real ERP but forgets to drop
+    `stub: bool = True` from OrderStatusOutput -- this would still fail
+    here, now as a status regression rather than a silent lie)."""
+
+    def test_ready_tools_have_a_real_backend(self) -> None:
+        ready = {
+            'echo': 'trivial passthrough, nothing to stub',
+            'get_machine_info': 'real Django ORM query',
+            'list_customer_machines': 'real Django ORM query',
+            'search_manual': 'real Qdrant/fastembed RAG search',
+            'search_error_codes': 'real Qdrant/fastembed RAG search',
+        }
+        for name, why in ready.items():
+            with self.subTest(tool=name):
+                spec = registry.get_tool(name)
+                assert spec is not None
+                self.assertEqual(spec.status, 'ready', f'{name}: expected ready ({why})')
+
+    def test_stub_tools_are_not_yet_backed_by_a_real_system(self) -> None:
+        still_stub = {
+            'query_telemetry': 'hardcoded value=0.0, no ingestion pipeline',
+            'list_spare_parts': 'hardcoded STUB-PART-001, no catalog connected',
+            'create_ticket': 'generates a fake ticket_id, no persistence',
+            'get_quote_history': 'sample CSV data, no quoting system connected',
+            'get_order_status': 'sample CSV data, no ERP connected',
+            'get_contract_info': 'sample CSV data, no contracts system connected',
+        }
+        for name, why in still_stub.items():
+            with self.subTest(tool=name):
+                spec = registry.get_tool(name)
+                assert spec is not None
+                self.assertEqual(spec.status, 'stub', f'{name}: expected stub ({why})')
+
+    def test_every_registered_tool_is_accounted_for(self) -> None:
+        """Guards the audit itself against silently going stale: if a new
+        tool is registered without being added to one of the two lists
+        above, this fails loudly instead of the tool going unaudited."""
+        audited = {
+            'echo', 'get_machine_info', 'list_customer_machines', 'search_manual',
+            'search_error_codes', 'query_telemetry', 'list_spare_parts', 'create_ticket',
+            'get_quote_history', 'get_order_status', 'get_contract_info',
+        }
+        registered = {meta['name'] for meta in registry.list_tools()}
+        self.assertEqual(
+            registered,
+            audited,
+            'A tool was added/removed without updating the ready/stub audit above.',
+        )
+

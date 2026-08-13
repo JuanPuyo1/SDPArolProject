@@ -72,8 +72,18 @@ class ToolSpec:
     output_model: type[BaseModel]
     handler: Callable[[Any], BaseModel]
     agent: AgentName
-    status: ToolStatus
     requires_machine_scope: bool
+
+    @property
+    def status(self) -> ToolStatus:
+        """Derived, not hand-set. A tool is 'stub' iff its own Output model
+        declares a `stub` field (e.g. ListSparePartsOutput.stub: bool = True)
+        -- previously `status` was a second, separately hand-typed kwarg on
+        every ToolSpec, free to disagree with what the tool's own response
+        payload claims about itself. Now there is exactly one place to mark
+        a tool as not-yet-wired-to-a-real-backend: add `stub: bool = True`
+        to its Output model, and remove it when the tool goes live."""
+        return 'stub' if 'stub' in self.output_model.model_fields else 'ready'
 
 
 _TOOLS: dict[str, ToolSpec] = {
@@ -84,7 +94,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=EchoOutput,
         handler=echo,
         agent='shared',
-        status='ready',
         requires_machine_scope=False,
     ),
     'get_machine_info': ToolSpec(
@@ -94,7 +103,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=GetMachineInfoOutput,
         handler=get_machine_info,
         agent='shared',
-        status='ready',
         requires_machine_scope=True,
     ),
     'list_customer_machines': ToolSpec(
@@ -104,7 +112,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=ListCustomerMachinesOutput,
         handler=list_customer_machines,
         agent='shared',
-        status='ready',
         requires_machine_scope=False,
     ),
     'search_manual': ToolSpec(
@@ -114,7 +121,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=SearchManualOutput,
         handler=search_manual,
         agent='manuals',
-        status='ready',
         requires_machine_scope=True,
     ),
     'query_telemetry': ToolSpec(
@@ -124,7 +130,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=QueryTelemetryOutput,
         handler=query_telemetry,
         agent='telemetry',
-        status='stub',
         requires_machine_scope=True,
     ),
     'list_spare_parts': ToolSpec(
@@ -134,7 +139,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=ListSparePartsOutput,
         handler=list_spare_parts,
         agent='business',
-        status='stub',
         requires_machine_scope=True,
     ),
     'search_error_codes': ToolSpec(
@@ -144,7 +148,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=SearchErrorCodesOutput,
         handler=search_error_codes,
         agent='troubleshooting',
-        status='ready',
         requires_machine_scope=True,
     ),
     'create_ticket': ToolSpec(
@@ -154,7 +157,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=CreateTicketOutput,
         handler=create_ticket,
         agent='service',
-        status='stub',
         requires_machine_scope=True,
     ),
     'get_quote_history': ToolSpec(
@@ -169,7 +171,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=QuoteHistoryOutput,
         handler=get_quote_history,
         agent='business',
-        status='stub',
         requires_machine_scope=True,
     ),
     'get_order_status': ToolSpec(
@@ -183,7 +184,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=OrderStatusOutput,
         handler=get_order_status,
         agent='business',
-        status='stub',
         requires_machine_scope=True,
     ),
     'get_contract_info': ToolSpec(
@@ -196,7 +196,6 @@ _TOOLS: dict[str, ToolSpec] = {
         output_model=ContractInfoOutput,
         handler=get_contract_info,
         agent='business',
-        status='stub',
         requires_machine_scope=True,
     ),
 }

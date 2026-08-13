@@ -16,10 +16,11 @@ from django.test import Client, TestCase, TransactionTestCase, override_settings
 from langchain_core.messages import AIMessageChunk
 from langchain_core.tools import tool
 
-from apps.agents.agent_kit import AgentTool, run_tool_calling_loop
+from apps.agents.agent_kit import AgentTool, mcp_tool, run_tool_calling_loop
 from apps.agents.langgraph_orchestrator import AgentIntent, LangGraphOrchestrator, classify_intent
 from apps.agents.stub_orchestrator import StubOrchestrator
 from apps.machines.models import Machine
+from apps.mcp_server import registry
 
 
 def _tool_call_turn(name: str, args: dict, call_id: str = 'call_1') -> list[AIMessageChunk]:
@@ -179,6 +180,56 @@ class RunToolCallingLoopTests(TestCase):
         self.assertEqual(chunks[-1].type, 'error')
         assert chunks[-1].message is not None
         self.assertIn('3 tool-calling round-trips', chunks[-1].message)
+
+
+class BuildAgentToolsTests(TestCase):
+    """Regression coverage for the description-drift fix: a tool's name,
+    description, and argument schema must come from its registry.py
+    ToolSpec -- the single source of truth -- not a hand-copied `@tool`
+    docstring per agent that can silently go stale. No DB fixture needed:
+    building a tool's schema doesn't invoke it (that's where tenant scoping
+    is checked), so these never touch scoping.get_owned_machine."""
+
+    def test_tool_description_matches_registry_not_a_hand_copied_docstring(self) -> None:
+        built = mcp_tool('get_quote_history', customer_id='demo', machine_serial='A3279')
+        spec = registry.get_tool('get_quote_history')
+        assert spec is not None
+        self.assertEqual(built.tool.description, spec.description)
+
+    def test_scope_fields_are_stripped_from_the_llm_visible_schema(self) -> None:
+        built = mcp_tool('get_quote_history', customer_id='demo', machine_serial='A3279')
+        fields = built.tool.args_schema.model_fields
+        self.assertNotIn('customer_id', fields)
+        self.assertNotIn('machine_serial', fields)
+        self.assertIn('quote_id', fields)
+
+    def test_unknown_tool_name_raises_at_build_time_not_silently(self) -> None:
+        with self.assertRaises(ValueError):
+            mcp_tool('does_not_exist', customer_id='demo', machine_serial='A3279')
+
+    def test_orders_business_agent_picks_up_every_business_tagged_tool(self) -> None:
+        from apps.agents.orders_business_agent import _build_tools
+
+        names = {t.tool.name for t in _build_tools('demo', 'A3279')}
+        self.assertEqual(
+            names,
+            {'get_quote_history', 'get_order_status', 'get_contract_info', 'list_spare_parts'},
+        )
+
+    def test_troubleshooting_agent_spans_its_three_registry_domains_only(self) -> None:
+        from apps.agents.troubleshooting_service_agent import _build_tools
+
+        names = {t.tool.name for t in _build_tools('demo', 'A3279')}
+        self.assertEqual(names, {'search_error_codes', 'query_telemetry', 'create_ticket'})
+        # 'shared' tools (get_machine_info, echo, ...) must not leak in even
+        # though list_tools(agent=X) also returns them as a discovery aid.
+        self.assertNotIn('get_machine_info', names)
+
+    def test_manuals_agent_owns_search_manual_only(self) -> None:
+        from apps.agents.manuals_agent import _build_tools
+
+        names = {t.tool.name for t in _build_tools('demo', 'A3279')}
+        self.assertEqual(names, {'search_manual'})
 
 
 class StubOrchestratorTests(TestCase):
