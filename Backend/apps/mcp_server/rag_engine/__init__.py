@@ -1,5 +1,5 @@
 """
-rag_engine — vector retrieval layer behind the Manuals / Troubleshooting MCP tools.
+rag_engine — vector retrieval layer behind the Manuals MCP tool.
 
 Architectural rule: agents call MCP tools, MCP tools call into this engine, and
 only this engine talks to Qdrant. Keeping the Qdrant dependency on this side of
@@ -16,7 +16,6 @@ The design mirrors ``vectorDB_AROL.ipynb``:
 Public surface used by MCP tools:
 
 * ``rag_engine.search.search_manuals(query, machine_serial, top_k)``
-* ``rag_engine.search.search_error_codes(query, machine_serial, top_k)``
 """
 
 from . import client, collections, embeddings, search
