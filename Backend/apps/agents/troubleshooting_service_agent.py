@@ -35,12 +35,6 @@ def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
     scope = {'customer_id': customer_id, 'machine_serial': machine_serial}
 
     @tool
-    def search_error_codes(query: str) -> dict:
-        """Look up error codes / alarms and recommended troubleshooting steps.
-        query: the error code, alarm text, or symptom description."""
-        return registry.invoke('search_error_codes', {**scope, 'query': query})
-
-    @tool
     def search_manual(query: str) -> dict:
         """Search the machine manual for relevant passages/procedures.
         query: natural-language or keyword query."""
@@ -76,7 +70,6 @@ def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
         )
 
     return [
-        AgentTool(search_error_codes, 'Searching error codes and recommended actions…'),
         AgentTool(search_manual, 'Searching manual for related procedures…'),
         AgentTool(query_telemetry, 'Querying recent telemetry readings…'),
         AgentTool(create_ticket, 'Opening field-support ticket…'),

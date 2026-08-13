@@ -77,7 +77,7 @@ SDPArolProject/
         ├── machines/                   # Fleet ORM models & demo seeders
         ├── mcp_server/                 # MCP tool registry, tools & rag_engine
         │   ├── rag_engine/             # Qdrant client, collections & search
-        │   └── tools/                  # search_manual, search_error_codes, etc.
+        │   └── tools/                  # search_manual, query_telemetry, etc.
         ├── agents/                     # HTTP/SSE endpoints, ports & orchestrators
         └── core/                       # Shared logging & cost utilities
 ```

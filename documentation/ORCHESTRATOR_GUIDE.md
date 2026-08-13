@@ -94,10 +94,9 @@ Demo seed: user `demo`, serial `A3279` (`python manage.py seed_demo_machine`).
 | `echo` | shared | ready | optional | Connectivity / debug |
 | `get_machine_info` | shared | ready | customer + serial | Full machine record |
 | `list_customer_machines` | shared | ready | customer only | Fleet list |
-| `search_manual` | **manuals** | **ready** | customer + serial | Qdrant vector retrieval for manuals |
+| `search_manual` | **manuals** | **ready** | customer + serial | Qdrant vector retrieval for user manuals & safety sheets |
 | `query_telemetry` | **telemetry** | stub | customer + serial | Metric time series |
 | `list_spare_parts` | **business** | stub | customer + serial | Spare parts catalog |
-| `search_error_codes` | **troubleshooting** | **ready** | customer + serial | Qdrant vector retrieval for alarms & error codes |
 | `create_ticket` | **service** | stub | customer + serial | Open support ticket |
 
 `registry.list_tools(agent="manuals")` returns that agent’s tools **plus** all `shared` tools.
@@ -207,27 +206,6 @@ Queries are automatically filtered by `machine_model` to enforce strict tenant b
 
 ---
 
-### `search_error_codes` (troubleshooting · ready)
-
-**Owner:** Troubleshooting Agent (Esteban)  
-**When:** HMI alarm / error code / symptom → diagnosis + actions.  
-**Backend:** Powered by `apps.mcp_server.rag_engine` (Qdrant Vector Database `error_codes` collection).  
-**Input:**
-
-```json
-{
-  "customer_id": "demo",
-  "machine_serial": "A3279",
-  "query": "E042 star-wheel jam",
-  "top_k": 5
-}
-```
-
-**Output:** `{ "query", "hits": [ { "code", "title", "severity", "summary", "recommended_actions" } ] }`
-
-Typical follow-up: call `search_manual` with the same query for procedure text.
-
----
 
 ### `create_ticket` (service · stub)
 
@@ -263,7 +241,7 @@ No persistence yet — `ticket_id` is generated for contract testing.
 | “How do I … / show manual” | `search_manual` | `get_machine_info` for manual URL |
 | “What is the temperature / cycles?” | `query_telemetry` | — |
 | “Order / find spare part” | `list_spare_parts` | `create_ticket` (category `spare_parts`) |
-| “Alarm E0xx / not starting” | `search_error_codes` | `search_manual`, `query_telemetry` |
+| “Alarm E0xx / not starting” | `search_manual` | `query_telemetry` |
 | “Send a technician” | `create_ticket` | attach findings from other tools in `description` |
 
 Always keep `customer_id` + `machine_serial` in graph state and pass them into every scoped tool call.
@@ -306,7 +284,7 @@ Or use `registry.list_tools()` → each item’s `input_schema` / `output_schema
 | Manuals | Partners | `search_manual` (+ shared) |
 | Telemetry | Partners | `query_telemetry` (+ shared) |
 | Business | Partners | `list_spare_parts` (+ shared) |
-| Troubleshooting | Esteban | `search_error_codes` (+ shared, often + `search_manual`) |
+| Troubleshooting | Esteban | `search_manual` (+ shared) |
 | Service | Esteban | `create_ticket` (+ shared) |
 
 Shared tools are available to **all** agents. New domain capabilities → new tool in `mcp_server` + entry in this guide; do not bypass the registry.

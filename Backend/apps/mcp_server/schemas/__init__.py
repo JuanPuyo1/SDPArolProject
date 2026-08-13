@@ -13,7 +13,6 @@ from .machine import (
 from .manual import ManualHit, SearchManualInput, SearchManualOutput
 from .telemetry import QueryTelemetryInput, QueryTelemetryOutput, TelemetryPoint
 from .ticket import CreateTicketInput, CreateTicketOutput
-from .troubleshooting import ErrorCodeHit, SearchErrorCodesInput, SearchErrorCodesOutput
 
 __all__ = [
     'ScopedContext',
@@ -34,9 +33,6 @@ __all__ = [
     'TelemetryPoint',
     'CreateTicketInput',
     'CreateTicketOutput',
-    'SearchErrorCodesInput',
-    'SearchErrorCodesOutput',
-    'ErrorCodeHit',
     'ListSparePartsInput',
     'ListSparePartsOutput',
     'SparePartItem',

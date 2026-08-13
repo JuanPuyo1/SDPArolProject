@@ -191,7 +191,7 @@ class StubOrchestratorTests(TestCase):
     def test_stub_calls_mcp_tools_and_streams_final_answer(self) -> None:
         llm = _ScriptedLLM(
             [
-                _tool_call_turn('search_error_codes', {'query': 'E042 star-wheel jam'}),
+                _tool_call_turn('search_manual', {'query': 'E042 star-wheel jam'}),
                 _text_turn('Error E042 indicates a star-wheel jam. Clear the jam and reset the alarm.'),
             ],
         )
@@ -214,7 +214,7 @@ class StubOrchestratorTests(TestCase):
 
         tool_names = [c.tool for c in chunks if c.type == 'tool']
         self.assertIn('get_machine_info', tool_names)
-        self.assertIn('search_error_codes', tool_names)
+        self.assertIn('search_manual', tool_names)
 
         # get_machine_info's result is real (not scripted) -- confirms the
         # actual scoping/registry call ran, not just the fake narration.
@@ -367,7 +367,7 @@ class LangGraphOrchestratorTests(TransactionTestCase):
     def test_routes_troubleshooting_message_to_troubleshooting_service_agent(self) -> None:
         llm = _ScriptedLLM(
             [
-                _tool_call_turn('search_error_codes', {'query': 'E042'}),
+                _tool_call_turn('search_manual', {'query': 'E042'}),
                 _text_turn('That alarm means a star-wheel jam.'),
             ],
         )
@@ -391,7 +391,7 @@ class LangGraphOrchestratorTests(TransactionTestCase):
         self.assertTrue(any('Troubleshooting/Service' in s for s in step_labels))
 
         tool_names = [c.tool for c in chunks if c.type == 'tool']
-        self.assertIn('search_error_codes', tool_names)
+        self.assertIn('search_manual', tool_names)
         self.assertEqual(chunks[-1].type, 'done')
 
     def test_second_turn_on_same_session_sees_first_turns_history(self) -> None:
@@ -413,7 +413,7 @@ class LangGraphOrchestratorTests(TransactionTestCase):
 
         llm = _RecordingScriptedLLM(
             [
-                _tool_call_turn('search_error_codes', {'query': 'E042'}),
+                _tool_call_turn('search_manual', {'query': 'E042'}),
                 _text_turn('That alarm means a star-wheel jam.'),
                 _text_turn('Yes, clearing the jam and resetting the alarm should fix it.'),
             ],

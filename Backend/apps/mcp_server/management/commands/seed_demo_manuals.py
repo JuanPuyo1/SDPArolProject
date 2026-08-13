@@ -20,10 +20,7 @@ from django.core.management.base import BaseCommand
 from qdrant_client import models
 
 from apps.mcp_server.rag_engine.client import get_client
-from apps.mcp_server.rag_engine.collections import (
-    ensure_error_codes_collection,
-    ensure_manuals_collection,
-)
+from apps.mcp_server.rag_engine.collections import ensure_manuals_collection
 from apps.mcp_server.rag_engine.embeddings import embed_batch
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -59,52 +56,6 @@ Top Load Pressure: 200 N to 230 N.
 Fault Handling:
 If capping torque drops below 2.0 Nm (Fault Code E-04), verify magnetic clutch wear and check spindle head springs for mechanical fatigue. Replace worn grippers using toolkit T-804.
 """
-
-
-@dataclass(frozen=True)
-class ErrorCodeEntry:
-    code: str
-    machine_serial: str
-    title: str
-    severity: str
-    summary: str
-    recommended_actions: list[str]
-
-
-ERROR_CODES: list[ErrorCodeEntry] = [
-    ErrorCodeEntry(
-        code='E-04',
-        machine_serial='AROL_EURO_VP',
-        title='Low capping torque',
-        severity='high',
-        summary=(
-            'Capping torque dropped below 2.0 Nm. Magnetic clutch wear or spindle '
-            'head spring fatigue are the most likely causes.'
-        ),
-        recommended_actions=[
-            'Verify magnetic clutch wear.',
-            'Check spindle head springs for mechanical fatigue.',
-            'Replace worn grippers using toolkit T-804.',
-            'Recalibrate torque to 2.5–3.5 Nm after the repair.',
-        ],
-    ),
-    ErrorCodeEntry(
-        code='E-VIB-01',
-        machine_serial='AROL_EURO_VIP',
-        title='Capper spindle vibration above threshold',
-        severity='high',
-        summary=(
-            'Vibration above 3.0 mm/s detected during capping head engagement. '
-            'Risk of cap misalignment and capper damage.'
-        ),
-        recommended_actions=[
-            'Trigger capper spindle switch immediately.',
-            'Check capping head alignment.',
-            'Re-torque spindle mounting bolts per Section 4.4.',
-            'Run a 10-cycle test before resuming production.',
-        ],
-    ),
-]
 
 
 class Command(BaseCommand):
@@ -159,28 +110,3 @@ class Command(BaseCommand):
                 ),
             )
 
-        # -- Error codes -------------------------------------------------------
-        codes_coll = ensure_error_codes_collection(client)
-        code_texts = [f"{e.code} {e.title} {e.summary}" for e in ERROR_CODES]
-        code_vectors = embed_batch(code_texts)
-        code_points = [
-            models.PointStruct(
-                id=str(uuid.uuid4()),
-                vector=vec,
-                payload={
-                    'code': e.code,
-                    'machine_serial': e.machine_serial,
-                    'title': e.title,
-                    'severity': e.severity,
-                    'summary': e.summary,
-                    'recommended_actions': e.recommended_actions,
-                },
-            )
-            for vec, e in zip(code_vectors, ERROR_CODES)
-        ]
-        client.upsert(collection_name=codes_coll, points=code_points)
-        self.stdout.write(
-            self.style.SUCCESS(
-                f'Seeded {len(code_points)} error codes into {codes_coll}.',
-            ),
-        )
