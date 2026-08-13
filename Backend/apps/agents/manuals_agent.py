@@ -1,10 +1,11 @@
 """
-Orders/Business agent — LangChain tool-calling adapter.
+Manuals agent — LangChain tool-calling adapter.
 
-Answers quote-history, order-status, contract, and spare-parts questions by
-calling MCP business tools (real tenant scoping, sample data until the
-quoting/ERP/contracts/catalog systems are connected), streaming step + tool
-+ token chunks for the thinking-chain UI.
+Answers how-to/operating/maintenance questions by searching the machine's
+use-and-maintenance manual and technical documentation (RAG-backed via
+apps.mcp_server.rag_engine, behind the search_manual MCP tool), streaming
+step + tool + token chunks for the thinking-chain UI. Same structure as the
+other two agents: one system prompt, one tool, one loop.
 """
 
 from __future__ import annotations
@@ -16,38 +17,31 @@ from langchain_core.messages import BaseMessage
 from apps.agents.agent_kit import AgentTool, build_agent_tools, build_llm, load_machine_context, run_tool_calling_loop
 from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
 
-SYSTEM_PROMPT = """You are the Orders/Business agent for AROL's customer \
-platform. You answer questions about quotes (including revision history), \
-order status, contracts, and spare parts for industrial capping/filling \
-machines. You do NOT handle service tickets or troubleshooting — if asked \
-about a machine fault, breakdown, or open service ticket, say that's \
-handled by a different agent rather than guessing. Always call a tool to \
-fetch real data before answering — never invent quote/order numbers, \
-dates, statuses, or part numbers. Keep answers concise and cite the \
-relevant quote/order/contract/part IDs so the frontend can link to them."""
+_STEP_LABELS = {'search_manual': 'Searching manual for related procedures…'}
 
-# Registry.py owns each tool's name/description/schema; this only supplies
-# the UI-facing progress label shown while it runs (not duplicated data --
-# there's no other copy of this text to drift from).
-_STEP_LABELS = {
-    'get_quote_history': 'Looking up quote history…',
-    'get_order_status': 'Checking order status…',
-    'get_contract_info': 'Checking contract details…',
-    'list_spare_parts': 'Looking up spare parts…',
-}
+SYSTEM_PROMPT = """You are the Manuals agent for AROL's customer platform, \
+covering industrial capping/filling machines. You answer questions about \
+how to operate, adjust, or maintain a machine by searching its use-and- \
+maintenance manual and technical documentation. You do NOT diagnose active \
+alarms or faults, open service tickets, or handle quotes/orders/contracts — \
+if asked about those, say that's handled by a different agent rather than \
+guessing. Always call the search tool to fetch real passages before \
+answering — never invent procedures, page numbers, or manual content. Keep \
+answers concise and cite the page number/section when available so the \
+frontend can link to them."""
 
 
 def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
     return build_agent_tools(
-        'business',
+        'manuals',
         customer_id=customer_id,
         machine_serial=machine_serial,
         step_labels=_STEP_LABELS,
     )
 
 
-class OrdersBusinessAgent:
-    AGENT_ID = 'orders_business'
+class ManualsAgent:
+    AGENT_ID = 'manuals'
 
     def run(
         self,

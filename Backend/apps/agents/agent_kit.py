@@ -23,10 +23,16 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import Runnable
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, StructuredTool
+from pydantic import create_model
 
 from apps.agents.ports import OrchestratorChunk
 from apps.mcp_server import registry
+
+# Fields injected by mcp_tool() from the authenticated request rather than
+# exposed as LLM-fillable tool args -- the model must never be trusted to
+# supply tenant scope (see mcp_tool()'s docstring).
+_SCOPE_FIELDS = ('customer_id', 'machine_serial')
 
 DEFAULT_MODEL = getattr(settings, 'ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
 DEFAULT_MAX_ITERATIONS = 8
@@ -43,6 +49,94 @@ def build_llm(tools: list[BaseTool], *, model: str = DEFAULT_MODEL) -> Runnable:
     """Real Claude client, tool-bound. Callers may inject a fake model instead
     (e.g. in tests) by passing it directly to run_tool_calling_loop()."""
     return ChatAnthropic(model=model).bind_tools(tools)
+
+
+def mcp_tool(
+    name: str,
+    *,
+    customer_id: str,
+    machine_serial: str,
+    step_label: str | None = None,
+) -> AgentTool:
+    """Build a LangChain tool from an MCP ToolSpec (apps.mcp_server.registry).
+
+    name, description, and argument schema all come from the ToolSpec --
+    the single source of truth for what a tool does -- instead of being
+    hand-copied into a `@tool`-decorated docstring per agent. A stale
+    docstring that drifts from ToolSpec.description is a real cost (the LLM
+    picks tools based on what it's told they do), and there's now nowhere
+    for that drift to happen: change the description once, in registry.py,
+    and every agent that calls this picks it up automatically.
+
+    customer_id/machine_serial are injected here from the authenticated
+    request and stripped out of the schema the LLM sees -- the model must
+    never be trusted to supply tenant scope, only genuine tool arguments.
+    """
+    spec = registry.get_tool(name)
+    if spec is None:
+        raise ValueError(f'Unknown MCP tool: {name!r}')
+
+    scoped_fields = set(_SCOPE_FIELDS) & set(spec.input_model.model_fields)
+    public_fields = {
+        field_name: (field.annotation, field)
+        for field_name, field in spec.input_model.model_fields.items()
+        if field_name not in scoped_fields
+    }
+    args_schema = create_model(f'{spec.name}_Args', **public_fields)
+    scope = {'customer_id': customer_id, 'machine_serial': machine_serial}
+
+    def _call(**kwargs: Any) -> dict:
+        params = {**kwargs, **{field: scope[field] for field in scoped_fields}}
+        return registry.invoke(spec.name, params)
+
+    tool = StructuredTool.from_function(
+        func=_call,
+        name=spec.name,
+        description=spec.description,
+        args_schema=args_schema,
+    )
+    return AgentTool(tool, step_label or f'Calling {spec.name}…')
+
+
+def build_agent_tools(
+    agent_tags: str | set[str],
+    *,
+    customer_id: str,
+    machine_serial: str,
+    step_labels: dict[str, str] | None = None,
+) -> list[AgentTool]:
+    """Every MCP tool tagged for this agent in the registry, built via
+    mcp_tool(). Add a tool to an agent by tagging it in registry.py -- no
+    agent file needs editing to pick it up.
+
+    `agent_tags` is usually a single AgentName, but may be a set for an
+    agent that currently spans multiple registry domains (e.g.
+    TroubleshootingServiceAgent covers 'troubleshooting'/'telemetry'/
+    'service' until those split into their own agents).
+
+    registry.list_tools(agent=X) also returns 'shared' tools (get_machine_info,
+    echo, ...) as a convenience for discovery UIs -- those are excluded here
+    on purpose: they're either fetched explicitly by load_machine_context()
+    already, or debug-only, not meant to be LLM-callable by every agent.
+    """
+    tags = {agent_tags} if isinstance(agent_tags, str) else agent_tags
+    step_labels = step_labels or {}
+    seen: set[str] = set()
+    tools: list[AgentTool] = []
+    for tag in tags:
+        for meta in registry.list_tools(agent=tag):
+            if meta['agent'] != tag or meta['name'] in seen:
+                continue
+            seen.add(meta['name'])
+            tools.append(
+                mcp_tool(
+                    meta['name'],
+                    customer_id=customer_id,
+                    machine_serial=machine_serial,
+                    step_label=step_labels.get(meta['name']),
+                ),
+            )
+    return tools
 
 
 def load_machine_context(

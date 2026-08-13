@@ -53,14 +53,14 @@ from apps.mcp_server.tools import (
     search_manual,
 )
 
-ToolStatus = Literal['ready', 'stub']
+ToolStatus = Literal["ready", "stub"]
 AgentName = Literal[
-    'shared',
-    'manuals',
-    'telemetry',
-    'business',
-    'troubleshooting',
-    'service',
+    "shared",
+    "manuals",
+    "telemetry",
+    "business",
+    "troubleshooting",
+    "service",
 ]
 
 
@@ -72,131 +72,131 @@ class ToolSpec:
     output_model: type[BaseModel]
     handler: Callable[[Any], BaseModel]
     agent: AgentName
-    status: ToolStatus
     requires_machine_scope: bool
+
+    @property
+    def status(self) -> ToolStatus:
+        """Derived, not hand-set. A tool is 'stub' iff its own Output model
+        declares a `stub` field (e.g. ListSparePartsOutput.stub: bool = True)
+        -- previously `status` was a second, separately hand-typed kwarg on
+        every ToolSpec, free to disagree with what the tool's own response
+        payload claims about itself. Now there is exactly one place to mark
+        a tool as not-yet-wired-to-a-real-backend: add `stub: bool = True`
+        to its Output model, and remove it when the tool goes live."""
+        return "stub" if "stub" in self.output_model.model_fields else "ready"
 
 
 _TOOLS: dict[str, ToolSpec] = {
-    'echo': ToolSpec(
-        name='echo',
-        description='Debug tool: returns the input message (and optional scope fields).',
+    "echo": ToolSpec(
+        name="echo",
+        description="Debug tool: returns the input message (and optional scope fields).",
         input_model=EchoInput,
         output_model=EchoOutput,
         handler=echo,
-        agent='shared',
-        status='ready',
+        agent="shared",
         requires_machine_scope=False,
     ),
-    'get_machine_info': ToolSpec(
-        name='get_machine_info',
-        description='Return the full machine record for customer_id + machine_serial.',
+    "get_machine_info": ToolSpec(
+        name="get_machine_info",
+        description="Return the full machine record for customer_id + machine_serial.",
         input_model=GetMachineInfoInput,
         output_model=GetMachineInfoOutput,
         handler=get_machine_info,
-        agent='shared',
-        status='ready',
+        agent="shared",
         requires_machine_scope=True,
     ),
-    'list_customer_machines': ToolSpec(
-        name='list_customer_machines',
-        description='List machines owned by customer_id (fleet summary).',
+    "list_customer_machines": ToolSpec(
+        name="list_customer_machines",
+        description="List machines owned by customer_id (fleet summary).",
         input_model=ListCustomerMachinesInput,
         output_model=ListCustomerMachinesOutput,
         handler=list_customer_machines,
-        agent='shared',
-        status='ready',
+        agent="shared",
         requires_machine_scope=False,
     ),
-    'search_manual': ToolSpec(
-        name='search_manual',
-        description='Search the machine manual / RAG index for relevant passages.',
+    "search_manual": ToolSpec(
+        name="search_manual",
+        description="Search the machine manual / RAG index for relevant passages.",
         input_model=SearchManualInput,
         output_model=SearchManualOutput,
         handler=search_manual,
-        agent='shared',
-        status='ready',
+        agent="manuals",
         requires_machine_scope=True,
     ),
-    'query_telemetry': ToolSpec(
-        name='query_telemetry',
-        description='Query recent telemetry points for a metric on the scoped machine.',
+    "query_telemetry": ToolSpec(
+        name="query_telemetry",
+        description="Query recent telemetry points for a metric on the scoped machine.",
         input_model=QueryTelemetryInput,
         output_model=QueryTelemetryOutput,
         handler=query_telemetry,
-        agent='telemetry',
-        status='ready',
+        agent="telemetry",
+        status="ready",
         requires_machine_scope=True,
     ),
-    'list_spare_parts': ToolSpec(
-        name='list_spare_parts',
-        description='Search spare parts / catalog for the scoped machine.',
+    "list_spare_parts": ToolSpec(
+        name="list_spare_parts",
+        description="Search spare parts / catalog for the scoped machine.",
         input_model=ListSparePartsInput,
         output_model=ListSparePartsOutput,
         handler=list_spare_parts,
-        agent='business',
-        status='stub',
+        agent="business",
         requires_machine_scope=True,
     ),
-    'search_error_codes': ToolSpec(
-        name='search_error_codes',
-        description='Look up error codes / alarms and recommended troubleshooting steps.',
+    "search_error_codes": ToolSpec(
+        name="search_error_codes",
+        description="Look up error codes / alarms and recommended troubleshooting steps.",
         input_model=SearchErrorCodesInput,
         output_model=SearchErrorCodesOutput,
         handler=search_error_codes,
-        agent='troubleshooting',
-        status='ready',
+        agent="troubleshooting",
         requires_machine_scope=True,
     ),
-    'create_ticket': ToolSpec(
-        name='create_ticket',
-        description='Open a field-support / service ticket for the scoped machine.',
+    "create_ticket": ToolSpec(
+        name="create_ticket",
+        description="Open a field-support / service ticket for the scoped machine.",
         input_model=CreateTicketInput,
         output_model=CreateTicketOutput,
         handler=create_ticket,
-        agent='service',
-        status='stub',
+        agent="service",
         requires_machine_scope=True,
     ),
-    'get_quote_history': ToolSpec(
-        name='get_quote_history',
+    "get_quote_history": ToolSpec(
+        name="get_quote_history",
         description=(
-            'Look up quote history (all revisions, oldest to newest) for the '
-            'scoped customer/machine, optionally filtered to one quote_id. Use '
-            'for questions about quote status, price changes across revisions, '
-            'or whether a quote was accepted/rejected.'
+            "Look up quote history (all revisions, oldest to newest) for the "
+            "scoped customer/machine, optionally filtered to one quote_id. Use "
+            "for questions about quote status, price changes across revisions, "
+            "or whether a quote was accepted/rejected."
         ),
         input_model=QuoteHistoryInput,
         output_model=QuoteHistoryOutput,
         handler=get_quote_history,
-        agent='business',
-        status='stub',
+        agent="business",
         requires_machine_scope=True,
     ),
-    'get_order_status': ToolSpec(
-        name='get_order_status',
+    "get_order_status": ToolSpec(
+        name="get_order_status",
         description=(
-            'Look up confirmed order status and amount for the scoped '
-            'customer/machine. Orders may reference a quote_id if they '
-            'originated from an accepted quote.'
+            "Look up confirmed order status and amount for the scoped "
+            "customer/machine. Orders may reference a quote_id if they "
+            "originated from an accepted quote."
         ),
         input_model=OrderStatusInput,
         output_model=OrderStatusOutput,
         handler=get_order_status,
-        agent='business',
-        status='stub',
+        agent="business",
         requires_machine_scope=True,
     ),
-    'get_contract_info': ToolSpec(
-        name='get_contract_info',
+    "get_contract_info": ToolSpec(
+        name="get_contract_info",
         description=(
-            'Look up warranty/maintenance contract details (type, start/end '
-            'dates) for the scoped customer/machine.'
+            "Look up warranty/maintenance contract details (type, start/end "
+            "dates) for the scoped customer/machine."
         ),
         input_model=ContractInfoInput,
         output_model=ContractInfoOutput,
         handler=get_contract_info,
-        agent='business',
-        status='stub',
+        agent="business",
         requires_machine_scope=True,
     ),
 }
@@ -210,17 +210,17 @@ def list_tools(*, agent: str | None = None) -> list[dict[str, Any]]:
     """
     specs = _TOOLS.values()
     if agent is not None:
-        specs = [s for s in specs if s.agent == agent or s.agent == 'shared']
+        specs = [s for s in specs if s.agent == agent or s.agent == "shared"]
 
     return [
         {
-            'name': s.name,
-            'description': s.description,
-            'agent': s.agent,
-            'status': s.status,
-            'requires_machine_scope': s.requires_machine_scope,
-            'input_schema': s.input_model.model_json_schema(),
-            'output_schema': s.output_model.model_json_schema(),
+            "name": s.name,
+            "description": s.description,
+            "agent": s.agent,
+            "status": s.status,
+            "requires_machine_scope": s.requires_machine_scope,
+            "input_schema": s.input_model.model_json_schema(),
+            "output_schema": s.output_model.model_json_schema(),
         }
         for s in specs
     ]
@@ -242,8 +242,8 @@ def invoke(name: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     spec = _TOOLS.get(name)
     if spec is None:
         return ToolError(
-            message=f'Unknown tool: {name!r}.',
-            code='UNKNOWN_TOOL',
+            message=f"Unknown tool: {name!r}.",
+            code="UNKNOWN_TOOL",
         ).model_dump()
 
     try:
@@ -251,22 +251,24 @@ def invoke(name: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     except ValidationError as exc:
         return ToolError(
             message=str(exc),
-            code='VALIDATION_ERROR',
+            code="VALIDATION_ERROR",
         ).model_dump()
 
     try:
         result = spec.handler(validated)
     except ScopeError as exc:
         return ToolError(message=exc.message, code=exc.code).model_dump()
-    except Exception as exc:  # noqa: BLE001 — surface to orchestrator as structured error
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 — surface to orchestrator as structured error
         return ToolError(
-            message=f'Tool {name!r} failed: {exc}',
-            code='TOOL_ERROR',
+            message=f"Tool {name!r} failed: {exc}",
+            code="TOOL_ERROR",
         ).model_dump()
 
     if isinstance(result, BaseModel):
-        data = result.model_dump(mode='json')
+        data = result.model_dump(mode="json")
     else:
         data = result
 
-    return {'status': 'ok', 'data': data}
+    return {"status": "ok", "data": data}

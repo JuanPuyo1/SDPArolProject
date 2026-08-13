@@ -1,7 +1,7 @@
 """
 ingest_markdown_manuals — Ingest extracted Markdown manual documents into Qdrant DB.
 
-Parses all .md files in Data/Extracted_Markdown/ with structural headers (#, ##, ###),
+Parses all .md files in apps/mcp_server/data/ with structural headers (#, ##, ###),
 page comment tags (<!-- Page N -->), and threads complete metadata through child point payloads.
 
 Usage::
@@ -43,13 +43,13 @@ DEFAULT_MARKDOWN_MAP = {
 
 
 class Command(BaseCommand):
-    help = 'Ingest extracted Markdown manual documents from Data/Extracted_Markdown into Qdrant DB.'
+    help = 'Ingest extracted Markdown manual documents from apps/mcp_server/data into Qdrant DB.'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--dir',
             default=None,
-            help='Directory containing extracted Markdown manuals (defaults to Data/Extracted_Markdown).',
+            help='Directory containing extracted Markdown manuals (defaults to apps/mcp_server/data).',
         )
         parser.add_argument(
             '--no-clear',
@@ -60,8 +60,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        base_dir = Path(settings.BASE_DIR).parent if hasattr(settings, 'BASE_DIR') else Path.cwd()
-        md_dir = Path(options['dir']) if options['dir'] else base_dir / 'Data' / 'Extracted_Markdown'
+        base_dir = Path(settings.BASE_DIR) if hasattr(settings, 'BASE_DIR') else Path.cwd()
+        md_dir = Path(options['dir']) if options['dir'] else base_dir / 'apps' / 'mcp_server' / 'data'
 
         if not md_dir.exists():
             raise CommandError(f'Directory does not exist: {md_dir}')

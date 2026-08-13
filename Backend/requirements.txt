@@ -19,5 +19,5 @@ qdrant-client==1.18.0
 sqlparse==0.5.5
 tzdata==2026.3
 trustcall
-psycopg
-openpyxl
+fastembed
+qdrant-client

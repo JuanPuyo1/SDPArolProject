@@ -19,6 +19,12 @@ class OrchestratorChunk:
     tool: str | None = None
     data: dict[str, Any] | None = None
     message: str | None = None
+    # Set on the router's `step` chunk (LangGraphOrchestrator only) to the
+    # AgentIntent value that will handle this turn, e.g. 'orders_business'.
+    # Frontend uses it to attribute the whole reply to that agent for
+    # filtering -- StubOrchestrator never sets it (no router), so consumers
+    # must treat a missing agent as "unattributed", not an error.
+    agent: str | None = None
 
 
 @dataclass(frozen=True)
