@@ -33,7 +33,7 @@ class _RouteDecision(BaseModel):
     """Structured output schema for the router LLM call."""
 
     agent: Literal[
-        "orders_business", "troubleshooting_service", "manuals" "telemetry"
+        "orders_business", "troubleshooting_service", "manuals", "telemetry"
     ] = Field(
         description=(
             "'orders_business' for quotes, order status, invoices, "
@@ -217,8 +217,8 @@ _compiled_graph = _build_graph()
 
 class LangGraphOrchestrator:
     """Routes each chat turn to the orders/business, troubleshooting/service,
-    or manuals agent via a compiled LangGraph StateGraph, streaming each
-    agent's OrchestratorChunks straight through via LangGraph's custom
+    telemetry, or manuals agent via a compiled LangGraph StateGraph, streaming
+    each agent's OrchestratorChunks straight through via LangGraph's custom
     stream mode.
 
     Conversation history is real LangGraph state now, not a value discarded

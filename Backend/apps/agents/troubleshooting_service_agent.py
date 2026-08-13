@@ -20,7 +20,7 @@ from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
 # The three registry.py domains this agent currently merges into one; split
 # them out here (not by retagging the registry) if Telemetry or Service ever
 # become their own agents.
-_OWNED_AGENT_TAGS = {'troubleshooting', 'telemetry', 'service'}
+_OWNED_AGENT_TAGS = {'troubleshooting', 'service'}
 
 # Registry.py owns each tool's name/description/schema; this only supplies
 # the UI-facing progress label shown while it runs.
