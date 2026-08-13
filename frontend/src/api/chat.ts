@@ -56,9 +56,9 @@ export function toolStepDetail(tool: string, data: unknown): string | undefined 
 
   if (tool === 'get_machine_info' && payload.machine && typeof payload.machine === 'object') {
     const machine = payload.machine as Record<string, unknown>
-    const identification = machine.identification as Record<string, unknown> | undefined
-    const model = identification?.model ?? machine.model
-    if (typeof model === 'string') return model
+    const modelInfo = machine.model as Record<string, unknown> | undefined
+    const modelCode = modelInfo?.modelCode ?? machine.model
+    if (typeof modelCode === 'string') return modelCode
   }
 
   if (tool === 'get_quote_history' && Array.isArray(payload.revisions)) {

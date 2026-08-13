@@ -1,88 +1,57 @@
-from django.conf import settings
 from django.db import models
 
 
+class MachineModel(models.Model):
+    """Catalog entry describing an AROL machine product line."""
+
+    model_id = models.CharField(max_length=32, primary_key=True)
+    model_code = models.CharField(max_length=128)
+    description = models.TextField()
+    primitive_diameter = models.DecimalField(
+        max_digits=8,
+        decimal_places=1,
+        null=True,
+        blank=True,
+    )
+    nominal_heads = models.PositiveSmallIntegerField()
+    container_type = models.CharField(max_length=256)
+    cap_type = models.CharField(max_length=256)
+    industry_segment = models.CharField(max_length=128)
+    notes = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['model_code']
+
+    def __str__(self) -> str:
+        return self.model_code
+
+
 class Machine(models.Model):
-    """
-    Customer-owned capping machine record.
+    """Installed machine instance owned by a customer company."""
 
-    One user/customer owns many machines. Fields mirror the frontend
-    machine detail view (identification, technical, operating, units).
-    """
-
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+    machine_id = models.CharField(max_length=32, primary_key=True)
+    company = models.ForeignKey(
+        'core.Company',
         on_delete=models.CASCADE,
         related_name='machines',
-        help_text='Customer/user that owns this machine (tenant scope).',
+    )
+    model = models.ForeignKey(
+        MachineModel,
+        on_delete=models.PROTECT,
+        related_name='machines',
     )
     serial_number = models.CharField(max_length=64, unique=True, db_index=True)
-    qr_token = models.CharField(
-        max_length=128,
-        blank=True,
-        default='',
-        help_text='Token encoded in on-machine QR codes for lookup.',
-    )
-
-    model = models.CharField(max_length=128)
-    full_model = models.CharField(max_length=256)
-    manufacturing_year = models.PositiveIntegerField()
-    manufacturer = models.CharField(max_length=128, default='AROL S.p.A.')
-    site = models.CharField(max_length=256, blank=True, default='')
-
-    description = models.TextField()
-
-    # Identification
-    machine_type = models.CharField(max_length=256)
-    pitch_diameter = models.CharField(max_length=64)
-    heads = models.PositiveSmallIntegerField(default=1)
-    rotation = models.CharField(max_length=64)
-
-    # Manual
-    manual_revision = models.CharField(max_length=32, blank=True, default='')
-    manual_date = models.CharField(max_length=32, blank=True, default='')
-    manual_url = models.CharField(max_length=512, blank=True, default='')
-
-    # Weight & capacity
-    weight_value = models.CharField(max_length=32)
-    weight_unit = models.CharField(max_length=16, default='kg')
-    productive_capacity_value = models.CharField(max_length=32)
-    productive_capacity_unit = models.CharField(max_length=32, default='pcs/h')
-
-    # Electrical
-    electrical_main_supply = models.CharField(max_length=128)
-    electrical_auxiliary_supply = models.CharField(max_length=128)
-    electrical_total_installed_power = models.CharField(max_length=64)
-    electrical_breakdown = models.JSONField(
-        default=list,
-        blank=True,
-        help_text='List of {"label": "...", "value": "..."} power breakdown rows.',
-    )
-
-    # Pneumatic
-    pneumatic_sterile_air_capacity = models.CharField(max_length=64)
-    pneumatic_min_pressure = models.CharField(max_length=32)
-    pneumatic_max_pressure = models.CharField(max_length=32)
-
-    # Operating conditions
-    operating_temperature = models.CharField(max_length=128)
-    operating_environment = models.TextField()
-    operating_noise = models.TextField()
-
-    certifications = models.JSONField(
-        default=list,
-        blank=True,
-        help_text='List of certification strings, e.g. ["CE", "Directive 2006/42/EC"].',
-    )
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    delivery_date = models.DateField()
+    plant_location = models.CharField(max_length=256)
+    configuration_profile = models.TextField()
+    plc_family = models.CharField(max_length=128)
+    software_version = models.CharField(max_length=64, blank=True, default='')
 
     class Meta:
         ordering = ['serial_number']
 
     def __str__(self) -> str:
-        return f'{self.model} ({self.serial_number})'
+        return f'{self.model.model_code} ({self.serial_number})'
 
 
 class MachineUnit(models.Model):
@@ -104,3 +73,81 @@ class MachineUnit(models.Model):
 
     def __str__(self) -> str:
         return f'{self.code} — {self.name}'
+
+
+class TelemetrySnapshot(models.Model):
+    """Hourly operational telemetry reading for a machine."""
+
+    telemetry_id = models.CharField(max_length=32, primary_key=True)
+    machine = models.ForeignKey(
+        Machine,
+        on_delete=models.CASCADE,
+        related_name='telemetry_snapshots',
+    )
+    timestamp = models.DateTimeField(db_index=True)
+    operational_status = models.CharField(max_length=32)
+    production_rate_bph = models.PositiveIntegerField()
+    uptime_percentage = models.DecimalField(max_digits=5, decimal_places=1)
+    alarm_count = models.PositiveSmallIntegerField()
+    temperature_c = models.DecimalField(max_digits=5, decimal_places=1)
+    energy_kwh = models.DecimalField(max_digits=8, decimal_places=2)
+    health_note = models.TextField()
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['machine', 'timestamp']),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.telemetry_id} @ {self.timestamp:%Y-%m-%d %H:%M}'
+
+
+class Alarm(models.Model):
+    """Machine alarm event raised during production."""
+
+    alarm_id = models.CharField(max_length=32, primary_key=True)
+    machine = models.ForeignKey(
+        Machine,
+        on_delete=models.CASCADE,
+        related_name='alarms',
+    )
+    timestamp = models.DateTimeField(db_index=True)
+    alarm_code = models.CharField(max_length=128)
+    severity = models.CharField(max_length=16)
+    alarm_status = models.CharField(max_length=32)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self) -> str:
+        return f'{self.alarm_code} ({self.alarm_id})'
+
+
+class MaintenanceTicket(models.Model):
+    """Service or maintenance ticket linked to a machine (optionally to an alarm)."""
+
+    ticket_id = models.CharField(max_length=32, primary_key=True)
+    machine = models.ForeignKey(
+        Machine,
+        on_delete=models.CASCADE,
+        related_name='maintenance_tickets',
+    )
+    alarm = models.ForeignKey(
+        Alarm,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='maintenance_tickets',
+    )
+    ticket_type = models.CharField(max_length=64)
+    ticket_status = models.CharField(max_length=32)
+    priority = models.CharField(max_length=16)
+    created_date = models.DateField()
+    owner_role = models.CharField(max_length=64)
+
+    class Meta:
+        ordering = ['-created_date']
+
+    def __str__(self) -> str:
+        return f'{self.ticket_id} — {self.ticket_type}'

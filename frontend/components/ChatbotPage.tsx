@@ -26,7 +26,7 @@ export default function ChatbotPage() {
   const { user } = useAuth()
   const { machine, loading: machineLoading, error: machineError } = useDefaultMachine()
   const serial = machine?.serialNumber ?? null
-  const modelLabel = machine?.model ?? machine?.fullModel ?? 'your machine'
+  const modelLabel = machine?.model.modelCode ?? 'your machine'
 
   const { isStreaming, error: chatError, sendMessage } = useChatStream({
     machineSerial: serial,
