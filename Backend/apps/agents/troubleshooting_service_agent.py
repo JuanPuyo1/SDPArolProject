@@ -17,30 +17,33 @@ from langchain_core.messages import BaseMessage
 from apps.agents.agent_kit import AgentTool, build_agent_tools, build_llm, load_machine_context, run_tool_calling_loop
 from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
 
-# The three registry.py domains this agent currently merges into one; split
-# them out here (not by retagging the registry) if Telemetry or Service ever
-# become their own agents.
+# The two registry.py domains this agent currently merges into one; split
+# them out here (not by retagging the registry) if Service ever becomes its
+# own agent.
 _OWNED_AGENT_TAGS = {'troubleshooting', 'service'}
 
 # Registry.py owns each tool's name/description/schema; this only supplies
 # the UI-facing progress label shown while it runs.
 _STEP_LABELS = {
     'search_error_codes': 'Searching error codes and recommended actions…',
-    'query_telemetry': 'Querying recent telemetry readings…',
+    'list_alarms': 'Checking alarm history…',
     'create_ticket': 'Opening field-support ticket…',
+    'list_maintenance_tickets': 'Checking ticket history…',
 }
 
 SYSTEM_PROMPT = """You are the Troubleshooting & Service agent for AROL's \
 customer platform, covering industrial capping/filling machines. You \
-diagnose alarms, faults, and breakdowns, and you open field-support tickets \
-when the user needs a technician. You do NOT handle quotes, orders, \
-contracts, or general manual/documentation lookups — if asked about those, \
+diagnose alarms, faults, and breakdowns using the machine's real alarm \
+history, and you open or look up field-support tickets when the user needs \
+a technician. You do NOT handle quotes, orders, contracts, telemetry trend \
+questions, or general manual/documentation lookups — if asked about those, \
 say that's handled by a different agent rather than guessing. Always call \
 a tool to fetch real data before answering — never invent error codes, \
-telemetry readings, or ticket IDs. Only call create_ticket when the user is \
-actually asking for a technician/field support, not for a diagnosis alone. \
-Keep answers concise and cite error codes or ticket IDs so the frontend can \
-link to them."""
+alarm codes, or ticket IDs. Only call create_ticket when the user is \
+actually asking for a technician/field support, not for a diagnosis alone; \
+use list_maintenance_tickets first to check whether a relevant ticket \
+already exists. Keep answers concise and cite alarm codes or ticket IDs so \
+the frontend can link to them."""
 
 
 def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:

@@ -1,4 +1,4 @@
-"""Schemas for quote/order/contract lookups (Orders/Business Agent)."""
+"""Schemas for quote/order lookups (Orders/Business Agent), ORM-backed."""
 
 from pydantic import BaseModel, Field
 
@@ -22,9 +22,7 @@ class QuoteRevision(BaseModel):
 
 
 class QuoteHistoryOutput(BaseModel):
-    stub: bool = True
     revisions: list[QuoteRevision]
-    note: str = 'get_quote_history returns representative sample data until the quoting system is connected.'
 
 
 class OrderStatusInput(ScopedContext):
@@ -41,23 +39,4 @@ class OrderRecord(BaseModel):
 
 
 class OrderStatusOutput(BaseModel):
-    stub: bool = True
     orders: list[OrderRecord]
-    note: str = 'get_order_status returns representative sample data until the ERP system is connected.'
-
-
-class ContractInfoInput(ScopedContext):
-    """No extra filters — contracts are always scoped to the caller's customer + machine."""
-
-
-class ContractRecord(BaseModel):
-    contract_id: str
-    type: str
-    start_date: str
-    end_date: str
-
-
-class ContractInfoOutput(BaseModel):
-    stub: bool = True
-    contracts: list[ContractRecord]
-    note: str = 'get_contract_info returns representative sample data until the contracts system is connected.'

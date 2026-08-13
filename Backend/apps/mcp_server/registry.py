@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
 
+from apps.authentication.visibility import COMMERCIAL_VISIBLE, OPERATIONAL_VISIBLE
 from apps.mcp_server.schemas.business import ListSparePartsInput, ListSparePartsOutput
 from apps.mcp_server.schemas.common import ToolError
 from apps.mcp_server.schemas.echo import EchoInput, EchoOutput
@@ -25,28 +26,34 @@ from apps.mcp_server.schemas.machine import (
 )
 from apps.mcp_server.schemas.manual import SearchManualInput, SearchManualOutput
 from apps.mcp_server.schemas.orders import (
-    ContractInfoInput,
-    ContractInfoOutput,
     OrderStatusInput,
     OrderStatusOutput,
     QuoteHistoryInput,
     QuoteHistoryOutput,
 )
 from apps.mcp_server.schemas.telemetry import QueryTelemetryInput, QueryTelemetryOutput
-from apps.mcp_server.schemas.ticket import CreateTicketInput, CreateTicketOutput
+from apps.mcp_server.schemas.ticket import (
+    CreateTicketInput,
+    CreateTicketOutput,
+    ListMaintenanceTicketsInput,
+    ListMaintenanceTicketsOutput,
+)
 from apps.mcp_server.schemas.troubleshooting import (
+    ListAlarmsInput,
+    ListAlarmsOutput,
     SearchErrorCodesInput,
     SearchErrorCodesOutput,
 )
-from apps.mcp_server.scoping import ScopeError
+from apps.mcp_server.scoping import ScopeError, resolve_customer
 from apps.mcp_server.tools import (
     create_ticket,
     echo,
-    get_contract_info,
     get_machine_info,
     get_order_status,
     get_quote_history,
+    list_alarms,
     list_customer_machines,
+    list_maintenance_tickets,
     list_spare_parts,
     query_telemetry,
     search_error_codes,
@@ -73,6 +80,10 @@ class ToolSpec:
     handler: Callable[[Any], BaseModel]
     agent: AgentName
     requires_machine_scope: bool
+    # Same role-based domains as the HTTP API's require_visibility() (see
+    # apps.authentication.visibility) -- None means every authenticated role
+    # can call this tool, matching how e.g. get_machine_info is ungated today.
+    visibility_domain: frozenset[str] | None = None
 
     @property
     def status(self) -> ToolStatus:
@@ -131,6 +142,7 @@ _TOOLS: dict[str, ToolSpec] = {
         handler=query_telemetry,
         agent="telemetry",
         requires_machine_scope=True,
+        visibility_domain=OPERATIONAL_VISIBLE,
     ),
     "list_spare_parts": ToolSpec(
         name="list_spare_parts",
@@ -140,6 +152,7 @@ _TOOLS: dict[str, ToolSpec] = {
         handler=list_spare_parts,
         agent="business",
         requires_machine_scope=True,
+        visibility_domain=COMMERCIAL_VISIBLE,
     ),
     "search_error_codes": ToolSpec(
         name="search_error_codes",
@@ -149,6 +162,21 @@ _TOOLS: dict[str, ToolSpec] = {
         handler=search_error_codes,
         agent="troubleshooting",
         requires_machine_scope=True,
+        visibility_domain=OPERATIONAL_VISIBLE,
+    ),
+    "list_alarms": ToolSpec(
+        name="list_alarms",
+        description=(
+            "List real alarm events raised on the scoped machine (code, "
+            "severity, status, timestamp). Defaults to currently "
+            "Open/Acknowledged alarms; set active_only=false for full history."
+        ),
+        input_model=ListAlarmsInput,
+        output_model=ListAlarmsOutput,
+        handler=list_alarms,
+        agent="troubleshooting",
+        requires_machine_scope=True,
+        visibility_domain=OPERATIONAL_VISIBLE,
     ),
     "create_ticket": ToolSpec(
         name="create_ticket",
@@ -158,6 +186,21 @@ _TOOLS: dict[str, ToolSpec] = {
         handler=create_ticket,
         agent="service",
         requires_machine_scope=True,
+        visibility_domain=OPERATIONAL_VISIBLE,
+    ),
+    "list_maintenance_tickets": ToolSpec(
+        name="list_maintenance_tickets",
+        description=(
+            "List real maintenance/service tickets for the scoped machine "
+            "(type, status, priority, owner, linked alarm). Optionally "
+            "filtered to one ticket_status."
+        ),
+        input_model=ListMaintenanceTicketsInput,
+        output_model=ListMaintenanceTicketsOutput,
+        handler=list_maintenance_tickets,
+        agent="service",
+        requires_machine_scope=True,
+        visibility_domain=OPERATIONAL_VISIBLE,
     ),
     "get_quote_history": ToolSpec(
         name="get_quote_history",
@@ -172,6 +215,7 @@ _TOOLS: dict[str, ToolSpec] = {
         handler=get_quote_history,
         agent="business",
         requires_machine_scope=True,
+        visibility_domain=COMMERCIAL_VISIBLE,
     ),
     "get_order_status": ToolSpec(
         name="get_order_status",
@@ -185,18 +229,7 @@ _TOOLS: dict[str, ToolSpec] = {
         handler=get_order_status,
         agent="business",
         requires_machine_scope=True,
-    ),
-    "get_contract_info": ToolSpec(
-        name="get_contract_info",
-        description=(
-            "Look up warranty/maintenance contract details (type, start/end "
-            "dates) for the scoped customer/machine."
-        ),
-        input_model=ContractInfoInput,
-        output_model=ContractInfoOutput,
-        handler=get_contract_info,
-        agent="business",
-        requires_machine_scope=True,
+        visibility_domain=COMMERCIAL_VISIBLE,
     ),
 }
 
@@ -218,6 +251,7 @@ def list_tools(*, agent: str | None = None) -> list[dict[str, Any]]:
             "agent": s.agent,
             "status": s.status,
             "requires_machine_scope": s.requires_machine_scope,
+            "visibility_domain": sorted(s.visibility_domain) if s.visibility_domain else None,
             "input_schema": s.input_model.model_json_schema(),
             "output_schema": s.output_model.model_json_schema(),
         }
@@ -254,6 +288,18 @@ def invoke(name: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         ).model_dump()
 
     try:
+        if spec.visibility_domain is not None:
+            customer_id = getattr(validated, "customer_id", None)
+            if customer_id:
+                user = resolve_customer(customer_id)
+                if user.visibility not in spec.visibility_domain:
+                    return ToolError(
+                        message=(
+                            f"Access denied: your role ({user.visibility or 'unknown'}) "
+                            f"cannot use {name!r}."
+                        ),
+                        code="FORBIDDEN",
+                    ).model_dump()
         result = spec.handler(validated)
     except ScopeError as exc:
         return ToolError(message=exc.message, code=exc.code).model_dump()

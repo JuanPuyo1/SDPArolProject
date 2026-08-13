@@ -1,10 +1,10 @@
 """
 Orders/Business agent — LangChain tool-calling adapter.
 
-Answers quote-history, order-status, contract, and spare-parts questions by
-calling MCP business tools (real tenant scoping, sample data until the
-quoting/ERP/contracts/catalog systems are connected), streaming step + tool
-+ token chunks for the thinking-chain UI.
+Answers quote-history, order-status, and spare-parts questions by calling
+MCP business tools (real tenant scoping; quotes/orders are ORM-backed, spare
+parts are still sample data until the catalog system is connected),
+streaming step + tool + token chunks for the thinking-chain UI.
 """
 
 from __future__ import annotations
@@ -18,13 +18,14 @@ from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
 
 SYSTEM_PROMPT = """You are the Orders/Business agent for AROL's customer \
 platform. You answer questions about quotes (including revision history), \
-order status, contracts, and spare parts for industrial capping/filling \
-machines. You do NOT handle service tickets or troubleshooting — if asked \
-about a machine fault, breakdown, or open service ticket, say that's \
-handled by a different agent rather than guessing. Always call a tool to \
-fetch real data before answering — never invent quote/order numbers, \
-dates, statuses, or part numbers. Keep answers concise and cite the \
-relevant quote/order/contract/part IDs so the frontend can link to them."""
+order status, and spare parts for industrial capping/filling machines. \
+You do NOT handle service tickets, troubleshooting, or contract/warranty \
+lookups — if asked about a machine fault, breakdown, open service ticket, \
+or contract details, say that's handled by a different agent rather than \
+guessing. Always call a tool to fetch real data before answering — never \
+invent quote/order numbers, dates, statuses, or part numbers. Keep answers \
+concise and cite the relevant quote/order/part IDs so the frontend can \
+link to them."""
 
 # Registry.py owns each tool's name/description/schema; this only supplies
 # the UI-facing progress label shown while it runs (not duplicated data --
@@ -32,7 +33,6 @@ relevant quote/order/contract/part IDs so the frontend can link to them."""
 _STEP_LABELS = {
     'get_quote_history': 'Looking up quote history…',
     'get_order_status': 'Checking order status…',
-    'get_contract_info': 'Checking contract details…',
     'list_spare_parts': 'Looking up spare parts…',
 }
 

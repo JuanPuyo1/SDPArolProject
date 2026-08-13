@@ -247,17 +247,22 @@ class BuildAgentToolsTests(TestCase):
             {
                 "get_quote_history",
                 "get_order_status",
-                "get_contract_info",
                 "list_spare_parts",
             },
         )
 
-    def test_troubleshooting_agent_spans_its_three_registry_domains_only(self) -> None:
+    def test_troubleshooting_agent_spans_its_two_registry_domains_only(self) -> None:
         from apps.agents.troubleshooting_service_agent import _build_tools
 
         names = {t.tool.name for t in _build_tools("demo", "A3279")}
         self.assertEqual(
-            names, {"search_error_codes", "query_telemetry", "create_ticket"}
+            names,
+            {
+                "search_error_codes",
+                "list_alarms",
+                "create_ticket",
+                "list_maintenance_tickets",
+            },
         )
         # 'shared' tools (get_machine_info, echo, ...) must not leak in even
         # though list_tools(agent=X) also returns them as a discovery aid.
