@@ -21,16 +21,17 @@ def resolve_customer(customer_id: str) -> AbstractBaseUser:
     """
     Resolve ``customer_id`` to a Django user.
 
-    Accepts username or numeric primary key as a string.
+    Accepts user_id (USR-001), username, email, or numeric primary key.
     """
     User = get_user_model()
     cid = customer_id.strip()
     if not cid:
         raise ScopeError('customer_id is required.', code='VALIDATION_ERROR')
 
-    user = User.objects.filter(username=cid).first()
-    if user is not None:
-        return user
+    for lookup in ('user_id', 'username', 'email'):
+        user = User.objects.filter(**{lookup: cid}).first()
+        if user is not None:
+            return user
 
     if cid.isdigit():
         user = User.objects.filter(pk=int(cid)).first()
@@ -41,19 +42,25 @@ def resolve_customer(customer_id: str) -> AbstractBaseUser:
 
 
 def get_owned_machine(*, customer_id: str, machine_serial: str) -> Machine:
-    """Return the machine if it belongs to the customer; otherwise raise ScopeError."""
+    """Return the machine if it belongs to the customer's company; otherwise raise ScopeError."""
     user = resolve_customer(customer_id)
     serial = machine_serial.strip()
     if not serial:
         raise ScopeError('machine_serial is required.', code='VALIDATION_ERROR')
 
+    if user.company_id is None:
+        raise ScopeError(
+            'User is not assigned to a company.',
+            code='FORBIDDEN',
+        )
+
     machine = (
-        Machine.objects.filter(owner=user, serial_number=serial)
+        Machine.objects.filter(company_id=user.company_id, serial_number=serial)
+        .select_related('model', 'company')
         .prefetch_related('main_units')
         .first()
     )
     if machine is None:
-        # Distinguish "exists but other tenant" vs "does not exist" without leaking.
         if Machine.objects.filter(serial_number=serial).exists():
             raise ScopeError(
                 'Machine is not assigned to this customer.',

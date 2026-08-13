@@ -1,54 +1,50 @@
-from .models import Machine, MachineUnit
+from .manuals import resolve_manual_url
+from .models import Machine, MachineUnit, MaintenanceTicket
+
+
+def _machine_model_to_dict(model) -> dict:
+    return {
+        'modelId': model.model_id,
+        'modelCode': model.model_code,
+        'description': model.description,
+        'primitiveDiameter': (
+            float(model.primitive_diameter)
+            if model.primitive_diameter is not None
+            else None
+        ),
+        'nominalHeads': model.nominal_heads,
+        'containerType': model.container_type,
+        'capType': model.cap_type,
+        'industrySegment': model.industry_segment,
+        'notes': model.notes,
+    }
+
+
+def _company_to_dict(company) -> dict:
+    return {
+        'companyId': company.company_id,
+        'companyName': company.company_name,
+        'country': company.country,
+        'sector': company.sector,
+        'city': company.city,
+        'currency': company.currency,
+        'locale': company.locale,
+    }
 
 
 def machine_to_dict(machine: Machine) -> dict:
-    """Serialize a Machine into the shape expected by the React machine view."""
+    """Serialize a fleet machine with related catalog and company data."""
     return {
-        'id': machine.pk,
+        'machineId': machine.machine_id,
         'serialNumber': machine.serial_number,
-        'qrToken': machine.qr_token,
-        'model': machine.model,
-        'fullModel': machine.full_model,
-        'manufacturingYear': machine.manufacturing_year,
-        'manufacturer': machine.manufacturer,
-        'site': machine.site,
-        'description': machine.description,
-        'manualRevision': machine.manual_revision,
-        'manualDate': machine.manual_date,
-        'manualUrl': machine.manual_url,
-        'identification': {
-            'machineType': machine.machine_type,
-            'pitchDiameter': machine.pitch_diameter,
-            'heads': machine.heads,
-            'rotation': machine.rotation,
-        },
-        'technicalData': {
-            'weight': {
-                'value': machine.weight_value,
-                'unit': machine.weight_unit,
-            },
-            'productiveCapacity': {
-                'value': machine.productive_capacity_value,
-                'unit': machine.productive_capacity_unit,
-            },
-            'electrical': {
-                'mainSupply': machine.electrical_main_supply,
-                'auxiliarySupply': machine.electrical_auxiliary_supply,
-                'totalInstalledPower': machine.electrical_total_installed_power,
-                'breakdown': machine.electrical_breakdown or [],
-            },
-            'pneumatic': {
-                'sterileAirCapacity': machine.pneumatic_sterile_air_capacity,
-                'minPressure': machine.pneumatic_min_pressure,
-                'maxPressure': machine.pneumatic_max_pressure,
-            },
-        },
-        'operatingConditions': {
-            'temperature': machine.operating_temperature,
-            'environment': machine.operating_environment,
-            'noise': machine.operating_noise,
-        },
-        'certifications': machine.certifications or [],
+        'deliveryDate': machine.delivery_date.isoformat(),
+        'plantLocation': machine.plant_location,
+        'configurationProfile': machine.configuration_profile,
+        'plcFamily': machine.plc_family,
+        'softwareVersion': machine.software_version or None,
+        'manualUrl': resolve_manual_url(machine.serial_number),
+        'model': _machine_model_to_dict(machine.model),
+        'company': _company_to_dict(machine.company),
         'mainUnits': [
             {
                 'code': unit.code,
@@ -62,9 +58,25 @@ def machine_to_dict(machine: Machine) -> dict:
 
 def machine_summary_to_dict(machine: Machine) -> dict:
     return {
-        'id': machine.pk,
+        'machineId': machine.machine_id,
         'serialNumber': machine.serial_number,
-        'model': machine.model,
-        'fullModel': machine.full_model,
-        'manufacturingYear': machine.manufacturing_year,
+        'modelCode': machine.model.model_code,
+        'deliveryDate': machine.delivery_date.isoformat(),
+        'plantLocation': machine.plant_location,
+        'industrySegment': machine.model.industry_segment,
+    }
+
+
+def maintenance_ticket_to_dict(ticket: MaintenanceTicket) -> dict:
+    return {
+        'ticketId': ticket.ticket_id,
+        'machineId': ticket.machine_id,
+        'serialNumber': ticket.machine.serial_number,
+        'plantLocation': ticket.machine.plant_location,
+        'alarmId': ticket.alarm_id,
+        'ticketType': ticket.ticket_type,
+        'ticketStatus': ticket.ticket_status,
+        'priority': ticket.priority,
+        'createdDate': ticket.created_date.isoformat(),
+        'ownerRole': ticket.owner_role,
     }

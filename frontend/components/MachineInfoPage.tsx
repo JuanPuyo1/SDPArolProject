@@ -1,11 +1,34 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useDefaultMachine } from '../src/hooks/useMachine'
+import { useMachine, useMachines } from '../src/hooks/useMachine'
 import './MachineInfoPage.css'
 
-export default function MachineInfoPage() {
-  const { machine, loading, error } = useDefaultMachine()
+function formatDate(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
 
-  if (loading) {
+function displayValue(value: string | number | null | undefined, fallback = '—'): string {
+  if (value === null || value === undefined || value === '') return fallback
+  return String(value)
+}
+
+export default function MachineInfoPage() {
+  const { machines, loading: listLoading, error: listError } = useMachines()
+  const [selectedSerial, setSelectedSerial] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (machines.length > 0 && !selectedSerial) {
+      setSelectedSerial(machines[0].serialNumber)
+    }
+  }, [machines, selectedSerial])
+
+  const { machine, loading, error } = useMachine(selectedSerial)
+
+  if (listLoading || loading) {
     return (
       <div className="machine-page">
         <p className="machine-page__status">Loading machine record…</p>
@@ -13,29 +36,55 @@ export default function MachineInfoPage() {
     )
   }
 
-  if (error || !machine) {
+  if (listError || error || !machine) {
     return (
       <div className="machine-page">
         <p className="machine-page__status machine-page__status--error">
-          {error || 'No machine found for this account.'}
+          {listError || error || 'No machine found for this account.'}
         </p>
       </div>
     )
   }
 
+  const { model, company } = machine
+  const deliveryYear = new Date(machine.deliveryDate).getFullYear()
+
   return (
     <div className="machine-page">
+      {machines.length > 1 && (
+        <div className="machine-picker">
+          <label htmlFor="machine-select">Fleet machine</label>
+          <select
+            id="machine-select"
+            value={machine.serialNumber}
+            onChange={(event) => setSelectedSerial(event.target.value)}
+          >
+            {machines.map((item) => (
+              <option key={item.machineId} value={item.serialNumber}>
+                {item.modelCode} · S/N {item.serialNumber} · {item.plantLocation}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <section className="machine-hero">
-        <div className="machine-hero__eyebrow">Machine record</div>
-        <h1 className="machine-hero__title">{machine.model}</h1>
-        <p className="machine-hero__subtitle">{machine.fullModel}</p>
+        <div className="machine-hero__eyebrow">{company.companyName}</div>
+        <h1 className="machine-hero__title">{model.modelCode}</h1>
+        <p className="machine-hero__subtitle">{model.description}</p>
         <div className="machine-hero__tags">
           <span className="tag">Serial {machine.serialNumber}</span>
-          <span className="tag">{machine.manufacturingYear}</span>
-          <span className="tag">{machine.identification.pitchDiameter} pitch</span>
-          <span className="tag">{machine.identification.heads} head</span>
+          <span className="tag">Delivered {deliveryYear}</span>
+          <span className="tag">{model.industrySegment}</span>
+          {model.primitiveDiameter !== null && (
+            <span className="tag">{model.primitiveDiameter} mm pitch</span>
+          )}
+          <span className="tag">
+            {model.nominalHeads} head{model.nominalHeads === 1 ? '' : 's'}
+          </span>
+          <span className="tag">{machine.plantLocation}</span>
         </div>
-        <p className="machine-hero__description">{machine.description}</p>
+        <p className="machine-hero__description">{machine.configurationProfile}</p>
         <div className="machine-hero__actions">
           <Link to="/manual" className="btn btn--primary">
             Read the manual
@@ -48,137 +97,144 @@ export default function MachineInfoPage() {
 
       <section className="machine-stats">
         <div className="stat-card">
-          <span className="stat-card__label">Machine weight</span>
-          <span className="stat-card__value">
-            {machine.technicalData.weight.value} {machine.technicalData.weight.unit}
+          <span className="stat-card__label">Machine ID</span>
+          <span className="stat-card__value stat-card__value--compact">{machine.machineId}</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-card__label">Delivery date</span>
+          <span className="stat-card__value stat-card__value--compact">
+            {formatDate(machine.deliveryDate)}
           </span>
         </div>
         <div className="stat-card">
-          <span className="stat-card__label">Productive capacity</span>
-          <span className="stat-card__value">
-            {machine.technicalData.productiveCapacity.value}{' '}
-            {machine.technicalData.productiveCapacity.unit}
+          <span className="stat-card__label">PLC family</span>
+          <span className="stat-card__value stat-card__value--compact">{machine.plcFamily}</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-card__label">Software version</span>
+          <span className="stat-card__value stat-card__value--compact">
+            {displayValue(machine.softwareVersion)}
           </span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-card__label">Total installed power</span>
-          <span className="stat-card__value">{machine.technicalData.electrical.totalInstalledPower}</span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-card__label">Rotation</span>
-          <span className="stat-card__value">{machine.identification.rotation}</span>
         </div>
       </section>
 
       <section className="machine-grid">
         <div className="panel">
-          <h2>Identification</h2>
+          <h2>Installation</h2>
           <dl className="def-list">
             <div>
-              <dt>Manufacturer</dt>
-              <dd>
-                {machine.manufacturer} &middot; {machine.site}
-              </dd>
+              <dt>Plant location</dt>
+              <dd>{machine.plantLocation}</dd>
             </div>
             <div>
-              <dt>Machine type</dt>
-              <dd>{machine.identification.machineType}</dd>
+              <dt>Delivery date</dt>
+              <dd>{formatDate(machine.deliveryDate)}</dd>
             </div>
             <div>
-              <dt>Pitch diameter</dt>
-              <dd>{machine.identification.pitchDiameter}</dd>
+              <dt>Configuration profile</dt>
+              <dd>{machine.configurationProfile}</dd>
             </div>
             <div>
-              <dt>Number of heads</dt>
-              <dd>{machine.identification.heads}</dd>
+              <dt>PLC family</dt>
+              <dd>{machine.plcFamily}</dd>
             </div>
             <div>
-              <dt>Manual revision</dt>
-              <dd>
-                Rev. {machine.manualRevision} &middot; {machine.manualDate}
-              </dd>
+              <dt>Software version</dt>
+              <dd>{displayValue(machine.softwareVersion)}</dd>
             </div>
           </dl>
         </div>
 
         <div className="panel">
-          <h2>Electrical data</h2>
+          <h2>Product model</h2>
           <dl className="def-list">
             <div>
-              <dt>Main supply</dt>
-              <dd>{machine.technicalData.electrical.mainSupply}</dd>
+              <dt>Model code</dt>
+              <dd>{model.modelCode}</dd>
             </div>
             <div>
-              <dt>Auxiliary supply</dt>
-              <dd>{machine.technicalData.electrical.auxiliarySupply}</dd>
+              <dt>Catalog ID</dt>
+              <dd>{model.modelId}</dd>
             </div>
-            {machine.technicalData.electrical.breakdown.map((item) => (
-              <div key={item.label}>
-                <dt>{item.label}</dt>
-                <dd>{item.value}</dd>
+            <div>
+              <dt>Industry segment</dt>
+              <dd>{model.industrySegment}</dd>
+            </div>
+            <div>
+              <dt>Primitive diameter</dt>
+              <dd>
+                {model.primitiveDiameter !== null
+                  ? `${model.primitiveDiameter} mm`
+                  : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt>Nominal heads</dt>
+              <dd>{model.nominalHeads}</dd>
+            </div>
+            <div>
+              <dt>Container type</dt>
+              <dd>{model.containerType}</dd>
+            </div>
+            <div>
+              <dt>Cap type</dt>
+              <dd>{model.capType}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="panel">
+          <h2>Customer company</h2>
+          <dl className="def-list">
+            <div>
+              <dt>Company</dt>
+              <dd>{company.companyName}</dd>
+            </div>
+            <div>
+              <dt>Location</dt>
+              <dd>
+                {company.city}, {company.country}
+              </dd>
+            </div>
+            <div>
+              <dt>Sector</dt>
+              <dd>{company.sector}</dd>
+            </div>
+            <div>
+              <dt>Currency</dt>
+              <dd>{company.currency}</dd>
+            </div>
+            <div>
+              <dt>Locale</dt>
+              <dd>{company.locale}</dd>
+            </div>
+          </dl>
+        </div>
+
+        {model.notes && (
+          <div className="panel">
+            <h2>Model notes</h2>
+            <p className="panel__notes">{model.notes}</p>
+          </div>
+        )}
+      </section>
+
+      {machine.mainUnits.length > 0 && (
+        <section className="panel panel--wide">
+          <h2>Main units of the machine</h2>
+          <div className="units-grid">
+            {machine.mainUnits.map((unit) => (
+              <div key={unit.code} className="unit-card">
+                <span className="unit-card__code">{unit.code}</span>
+                <div>
+                  <h3>{unit.name}</h3>
+                  <p>{unit.note}</p>
+                </div>
               </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="panel">
-          <h2>Pneumatic data</h2>
-          <dl className="def-list">
-            <div>
-              <dt>Sterile air capacity</dt>
-              <dd>{machine.technicalData.pneumatic.sterileAirCapacity}</dd>
-            </div>
-            <div>
-              <dt>Min. pressure</dt>
-              <dd>{machine.technicalData.pneumatic.minPressure}</dd>
-            </div>
-            <div>
-              <dt>Max. pressure</dt>
-              <dd>{machine.technicalData.pneumatic.maxPressure}</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="panel">
-          <h2>Operating conditions</h2>
-          <dl className="def-list">
-            <div>
-              <dt>Temperature range</dt>
-              <dd>{machine.operatingConditions.temperature}</dd>
-            </div>
-            <div>
-              <dt>Environment</dt>
-              <dd>{machine.operatingConditions.environment}</dd>
-            </div>
-            <div>
-              <dt>Noise emission</dt>
-              <dd>{machine.operatingConditions.noise}</dd>
-            </div>
-          </dl>
-          <div className="cert-badges">
-            {machine.certifications.map((cert) => (
-              <span key={cert} className="cert-badge">
-                {cert}
-              </span>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className="panel panel--wide">
-        <h2>Main units of the machine</h2>
-        <div className="units-grid">
-          {machine.mainUnits.map((unit) => (
-            <div key={unit.code} className="unit-card">
-              <span className="unit-card__code">{unit.code}</span>
-              <div>
-                <h3>{unit.name}</h3>
-                <p>{unit.note}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   )
 }

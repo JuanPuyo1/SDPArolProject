@@ -4,53 +4,47 @@ export type MachineUnit = {
   note: string
 }
 
-export type Machine = {
-  id: number
-  serialNumber: string
-  qrToken?: string
-  model: string
-  fullModel: string
-  manufacturingYear: number
-  manufacturer: string
-  site: string
+export type MachineModelInfo = {
+  modelId: string
+  modelCode: string
   description: string
-  manualRevision: string
-  manualDate: string
-  manualUrl: string
-  identification: {
-    machineType: string
-    pitchDiameter: string
-    heads: number
-    rotation: string
-  }
-  technicalData: {
-    weight: { value: string; unit: string }
-    productiveCapacity: { value: string; unit: string }
-    electrical: {
-      mainSupply: string
-      auxiliarySupply: string
-      totalInstalledPower: string
-      breakdown: { label: string; value: string }[]
-    }
-    pneumatic: {
-      sterileAirCapacity: string
-      minPressure: string
-      maxPressure: string
-    }
-  }
-  operatingConditions: {
-    temperature: string
-    environment: string
-    noise: string
-  }
-  certifications: string[]
+  primitiveDiameter: number | null
+  nominalHeads: number
+  containerType: string
+  capType: string
+  industrySegment: string
+  notes: string
+}
+
+export type CompanyInfo = {
+  companyId: string
+  companyName: string
+  country: string
+  sector: string
+  city: string
+  currency: string
+  locale: string
+}
+
+export type Machine = {
+  machineId: string
+  serialNumber: string
+  deliveryDate: string
+  plantLocation: string
+  configurationProfile: string
+  plcFamily: string
+  softwareVersion: string | null
+  manualUrl: string | null
+  model: MachineModelInfo
+  company: CompanyInfo
   mainUnits: MachineUnit[]
 }
 
 export type MachineSummary = {
-  id: number
+  machineId: string
   serialNumber: string
-  model: string
-  fullModel: string
-  manufacturingYear: number
+  modelCode: string
+  deliveryDate: string
+  plantLocation: string
+  industrySegment: string
 }

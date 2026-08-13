@@ -6,19 +6,26 @@ from apps.mcp_server.schemas.machine import (
     ListCustomerMachinesOutput,
     MachineSummary,
 )
-from apps.mcp_server.scoping import resolve_customer
+from apps.mcp_server.scoping import ScopeError, resolve_customer
 
 
 def list_customer_machines(params: ListCustomerMachinesInput) -> ListCustomerMachinesOutput:
     user = resolve_customer(params.customer_id)
-    qs = Machine.objects.filter(owner=user).order_by('serial_number')
+    if user.company_id is None:
+        raise ScopeError('User is not assigned to a company.', code='FORBIDDEN')
+
+    qs = (
+        Machine.objects.filter(company_id=user.company_id)
+        .select_related('model')
+        .order_by('serial_number')
+    )
     machines = [
         MachineSummary(
             id=m.pk,
             serial_number=m.serial_number,
-            model=m.model,
-            full_model=m.full_model,
-            manufacturing_year=m.manufacturing_year,
+            model=m.model.model_code,
+            full_model=m.model.model_code,
+            manufacturing_year=m.delivery_date.year,
         )
         for m in qs
     ]

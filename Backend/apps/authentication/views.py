@@ -1,8 +1,7 @@
 import json
 
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_not_required
-from django.contrib.auth.models import User
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -76,7 +75,7 @@ def profile_update_view(request: HttpRequest) -> JsonResponse:
     if not request.user.is_authenticated:
         return _json_error('Authentication required.', status=401)
 
-    user: User = request.user
+    user = request.user
 
     if request.method == 'GET':
         return JsonResponse({'user': user_to_dict(user)})

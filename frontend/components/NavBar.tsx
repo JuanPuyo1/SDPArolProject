@@ -1,10 +1,23 @@
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../src/hooks/useAuth'
+import type { UserVisibility } from '../src/types/auth'
 import './NavBar.css'
 
-const links = [
+type NavLinkItem = {
+  to: string
+  label: string
+  roles?: UserVisibility[]
+}
+
+const links: NavLinkItem[] = [
   { to: '/machine', label: 'Machine' },
   { to: '/manual', label: 'Manual' },
+  { to: '/orders', label: 'Orders', roles: ['full', 'commercial'] },
+  {
+    to: '/maintenance',
+    label: 'Maintenance tickets',
+    roles: ['full', 'technician'],
+  },
   { to: '/chatbot', label: 'AI Chatbot' },
 ]
 
@@ -15,6 +28,11 @@ export default function NavBar() {
     await logout()
   }
 
+  const visibleLinks = links.filter((link) => {
+    if (!link.roles) return true
+    return !!user?.visibility && link.roles.includes(user.visibility)
+  })
+
   return (
     <header className="nav-bar">
       <div className="nav-bar__brand">
@@ -22,7 +40,7 @@ export default function NavBar() {
         <span className="nav-bar__product">Customer Platform</span>
       </div>
       <nav className="nav-bar__links" aria-label="Main navigation">
-        {links.map((link) => (
+        {visibleLinks.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}
