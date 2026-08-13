@@ -158,13 +158,12 @@ ORCHESTRATOR_BACKEND = os.getenv('ORCHESTRATOR_BACKEND', 'stub')
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 ANTHROPIC_MODEL = os.getenv('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
 
-# Qdrant vector store (RAG over manuals & error codes).
+# Qdrant vector store (RAG over manuals).
 # QDRANT_URL/QDRANT_API_KEY are unset by default → rag_engine falls back to a
 # local in-memory instance, useful for tests and CI without external services.
 QDRANT_URL = os.getenv('QDRANT_URL', ':memory:')
 QDRANT_API_KEY = os.getenv('QDRANT_API_KEY', '') or None
 QDRANT_COLLECTION_MANUALS = os.getenv('QDRANT_COLLECTION_MANUALS', 'arol_manuals_fastembed')
-QDRANT_COLLECTION_ERROR_CODES = os.getenv('QDRANT_COLLECTION_ERROR_CODES', 'arol_error_codes')
 
 # Dense embedding model served by fastembed (no external API key required).
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'BAAI/bge-small-en-v1.5')

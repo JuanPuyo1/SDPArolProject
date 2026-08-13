@@ -125,7 +125,7 @@ result = registry.invoke(
 
 | Ready today (Vector DB & ORM) | Stub contract (stable I/O, placeholder data) |
 |--------------------------------|---------------------------------------------|
-| `echo`, `get_machine_info`, `list_customer_machines`, `search_manual` (Qdrant), `search_error_codes` (Qdrant) | `query_telemetry`, `list_spare_parts`, `create_ticket` |
+| `echo`, `get_machine_info`, `list_customer_machines`, `search_manual` (Qdrant) | `query_telemetry`, `list_spare_parts`, `create_ticket` |
 
 Full catalog and schemas: [ORCHESTRATOR_GUIDE.md](./ORCHESTRATOR_GUIDE.md).
 
@@ -178,14 +178,14 @@ HTTP: `POST /api/agents/chat/` → `text/event-stream`. Details: [ORCHESTRATOR_I
 | **Manuals** | Partner / Platform | `search_manual` | Qdrant vector retrieval for manuals (parent-child passages) |
 | **Telemetry** | Partner | `query_telemetry` | Metrics / time series for a machine |
 | **Business** | Partner | `list_spare_parts` | Parts catalog / upsell hints |
-| **Troubleshooting** | Esteban / Platform | `search_error_codes` (+ often `search_manual`) | Alarms → Qdrant vector search + diagnosis + recommended actions |
+| **Troubleshooting** | Esteban / Platform | `search_manual` | Alarms → Qdrant vector manual search + diagnosis + recommended actions |
 | **Service** | Esteban | `create_ticket` | Open field/support tickets |
 
 ### Intent → tools (orchestrator routing hint)
 
 | User says… | Prefer |
 |------------|--------|
-| Alarm / error / jam | `search_error_codes` → optional `search_manual` |
+| Alarm / error / jam | `search_manual` |
 | How do I / procedure | `search_manual` |
 | Temperature / cycles | `query_telemetry` |
 | Spare / part / order | `list_spare_parts` |

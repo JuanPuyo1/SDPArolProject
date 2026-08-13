@@ -34,10 +34,6 @@ from apps.mcp_server.schemas.orders import (
 )
 from apps.mcp_server.schemas.telemetry import QueryTelemetryInput, QueryTelemetryOutput
 from apps.mcp_server.schemas.ticket import CreateTicketInput, CreateTicketOutput
-from apps.mcp_server.schemas.troubleshooting import (
-    SearchErrorCodesInput,
-    SearchErrorCodesOutput,
-)
 from apps.mcp_server.scoping import ScopeError
 from apps.mcp_server.tools import (
     create_ticket,
@@ -49,7 +45,6 @@ from apps.mcp_server.tools import (
     list_customer_machines,
     list_spare_parts,
     query_telemetry,
-    search_error_codes,
     search_manual,
 )
 
@@ -135,16 +130,6 @@ _TOOLS: dict[str, ToolSpec] = {
         handler=list_spare_parts,
         agent='business',
         status='stub',
-        requires_machine_scope=True,
-    ),
-    'search_error_codes': ToolSpec(
-        name='search_error_codes',
-        description='Look up error codes / alarms and recommended troubleshooting steps.',
-        input_model=SearchErrorCodesInput,
-        output_model=SearchErrorCodesOutput,
-        handler=search_error_codes,
-        agent='troubleshooting',
-        status='ready',
         requires_machine_scope=True,
     ),
     'create_ticket': ToolSpec(

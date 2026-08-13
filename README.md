@@ -77,7 +77,7 @@ SDPArolProject/
         ├── machines/                   # Fleet ORM models & demo seeders
         ├── mcp_server/                 # MCP tool registry, tools & rag_engine
         │   ├── rag_engine/             # Qdrant client, collections & search
-        │   └── tools/                  # search_manual, search_error_codes, etc.
+        │   └── tools/                  # search_manual, query_telemetry, etc.
         ├── agents/                     # HTTP/SSE endpoints, ports & orchestrators
         └── core/                       # Shared logging & cost utilities
 ```
@@ -130,6 +130,38 @@ npm run dev
 ```
 
 Open `http://localhost:5173` in your browser. Log in using `demo` / `demo1234`.
+
+---
+
+## 🛠 Important Management Commands
+
+Below are key Django management commands available for database setup, demo data seeding, and RAG Vector DB manual ingestion:
+
+| Command | Description |
+| :--- | :--- |
+| `python manage.py migrate` | Apply database migrations for auth, machines, and sessions. |
+| `python manage.py seed_demo_machine --username demo` | Seed customer-owned machine record (`A3279`) and units for demo user. |
+| `python manage.py ingest_markdown_manuals` | **Ingest extracted Markdown manuals (`Data/Manuals_md`) into Qdrant DB** with parent/child chunking & page markers. |
+| `python manage.py seed_demo_manuals` | Seed default demo manual passages and error code entries into Qdrant DB. |
+| `python manage.py ingest_manual --pdf <path> --model <model>` | Ingest a single PDF manual directly into Qdrant. |
+
+### Running Markdown Manual Ingestion (`ingest_markdown_manuals`)
+
+The `ingest_markdown_manuals` command parses Markdown manuals, preserves `<!-- Page N -->` page numbers and header structures, embeds chunks with FastEmbed (`bge-small-en-v1.5`), and upserts them into the Qdrant DB `arol_manuals_fastembed` collection.
+
+```bash
+# Navigate to Backend directory
+cd Backend
+
+# Ingest all markdown manuals from Data/Manuals_md into Qdrant (clears collection by default)
+python manage.py ingest_markdown_manuals
+
+# Ingest without clearing existing Qdrant points
+python manage.py ingest_markdown_manuals --no-clear
+
+# Ingest from a custom markdown directory
+python manage.py ingest_markdown_manuals --dir /path/to/markdown_dir
+```
 
 ---
 

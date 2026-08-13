@@ -42,7 +42,7 @@ SDPProject/
         ├── mcp_server/           # MCP tool gateway & registry
         │   ├── rag_engine/       # Qdrant Vector DB, FastEmbed search & ingestion
         │   ├── schemas/          # Pydantic schemas per tool
-        │   └── tools/            # search_manual, search_error_codes, etc.
+        │   └── tools/            # search_manual, get_machine_info, etc.
         └── agents/               # Django chat API + OrchestratorPort (Stub / LangGraph)
 ```
 
@@ -90,7 +90,7 @@ One customer owns many machines. Every orchestrator run and every MCP tool call 
 
 ```tree
 apps/mcp_server/
-├── tools/           # search_manual, search_error_codes, get_machine_info, create_ticket, …
+├── tools/           # search_manual, get_machine_info, create_ticket, …
 ├── schemas/         # Pydantic input/output models per tool
 ├── rag_engine/      # Qdrant client, FastEmbed embeddings, collections & vector search
 ├── registry.py      # Tool registration & discovery
@@ -211,16 +211,29 @@ py initiliaze_database.py
 
 ## 8. Qdrant RAG Vector DB Engine
 
-The RAG (Retrieval-Augmented Generation) layer powers semantic search for manuals and error codes.
+The RAG (Retrieval-Augmented Generation) layer powers semantic search for manuals.
 
 Location: `Backend/apps/mcp_server/rag_engine/`
 
 Key components:
 - `client.py`: Process-wide `QdrantClient` singleton supporting server URL configuration (`QDRANT_URL`) with fallback to `:memory:` for local dev and tests.
 - `embeddings.py`: FastEmbed dense query embedding generator.
-- `collections.py`: Manages `manuals` and `error_codes` Qdrant collections.
+- `collections.py`: Manages the `manuals` Qdrant collection (`arol_manuals_fastembed`).
 - `search.py`: Vector search with `machine_model` filter enforcement (tenant boundary protection) and parent-content retrieval.
-- `ingest.py`: PDF/CSV parser with parent/child text chunking pipeline.
+- `ingest.py`: PDF/CSV/Markdown parser with parent/child text chunking pipeline.
+
+### Manual Ingestion Command (`ingest_markdown_manuals`)
+
+Extracted Markdown manuals (stored in `Data/Manuals_md/`) are ingested into Qdrant using the Django management command:
+
+```bash
+cd Backend
+python manage.py ingest_markdown_manuals
+```
+
+Options:
+- `--dir <path>`: Directory containing extracted Markdown manuals (defaults to `Data/Manuals_md`).
+- `--no-clear`: Ingest without clearing the existing `arol_manuals_fastembed` Qdrant collection.
 
 ---
 

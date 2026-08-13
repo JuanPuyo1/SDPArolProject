@@ -128,7 +128,7 @@ Cache-Control: no-cache
 
 data: {"type": "tool", "tool": "get_machine_info", "data": {"status": "ok", "data": {...}}}
 
-data: {"type": "tool", "tool": "search_error_codes", "data": {"status": "ok", "data": {...}}}
+data: {"type": "tool", "tool": "search_manual", "data": {"status": "ok", "data": {...}}}
 
 data: {"type": "token", "content": "Based on "}
 
@@ -161,7 +161,7 @@ The stub is intentionally **simple and deterministic**. It exists to:
 
    | Keywords (examples) | Tool |
    |---------------------|------|
-   | alarm, error, E042, jam, troubleshoot | `search_error_codes` |
+   | alarm, error, E042, jam, troubleshoot | `search_manual` |
    | manual, how to, procedure, torque | `search_manual` |
    | temperature, cycle, telemetry, pressure | `query_telemetry` |
    | spare, part, order | `list_spare_parts` |
@@ -414,7 +414,7 @@ When delivering the LangGraph orchestrator, confirm:
 | Attachment upload in chat API | Platform | Extend `chat_view` + port |
 | Conversation persistence | Platform | Optional `agents` models or MCP tool |
 | Token/cost logging | Platform | `apps/core` |
-| Real RAG Vector DB | Platform | **Done**: `search_manual` and `search_error_codes` live with Qdrant + FastEmbed |
+| Real RAG Vector DB | Platform | **Done**: `search_manual` lives with Qdrant + FastEmbed |
 | Real telemetry / ticket integration | Platform | Wire remaining stub tools (`query_telemetry`, `create_ticket`, `list_spare_parts`) |
 
 The stub proves the pipes work; LangGraph replaces the **brain** without rewiring the **plumbing**.
