@@ -37,6 +37,26 @@ _SCOPE_FIELDS = ('customer_id', 'machine_serial')
 DEFAULT_MODEL = getattr(settings, 'ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
 DEFAULT_MAX_ITERATIONS = 8
 
+# Appended to every agent's system prompt (see run_tool_calling_loop) so the
+# Access Model's "declined explicitly, never as an empty result" rule (see
+# README_AROL.md) is enforced once, centrally -- not left to each agent's
+# prompt to remember, and not left to emergent LLM phrasing. A tool result
+# with code=FORBIDDEN means the request is outside the caller's permitted
+# visibility domain, not that no data exists; wording it as "not found" would
+# be indistinguishable from the empty-result case the spec explicitly
+# prohibits.
+_ACCESS_DENIAL_INSTRUCTION = """
+
+If a tool result has status "error" and code "FORBIDDEN", that means this \
+information is outside your role's permitted access level for this account \
+-- it does NOT mean the data doesn't exist. Tell the user plainly and \
+explicitly that their account's role does not have permission to view this \
+category of information (name the category, e.g. commercial/quote data or \
+operational/telemetry data), and stop there for that part of the request. \
+Never reword a FORBIDDEN denial as "not found", "no data available", "I \
+couldn't find", or any other phrasing that reads as if nothing exists. \
+Never try a different tool to route around the denial."""
+
 
 class AgentTool(NamedTuple):
     """A LangChain tool paired with the `step` chunk label shown while it runs."""
@@ -201,7 +221,7 @@ def run_tool_calling_loop(
     """
     tools_by_name = {t.tool.name: t for t in tools}
     messages: list[BaseMessage] = [
-        SystemMessage(content=system_prompt),
+        SystemMessage(content=system_prompt + _ACCESS_DENIAL_INSTRUCTION),
         *(history or []),
         HumanMessage(content=user_message),
     ]
