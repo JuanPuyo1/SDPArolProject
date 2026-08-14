@@ -20,6 +20,11 @@ from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
 from apps.agents.telemetry_agent import TelemetryAgent
 from apps.agents.troubleshooting_service_agent import TroubleshootingServiceAgent
 
+from langchain_core.globals import set_debug
+
+# This enables terminal printing of all prompts, reasoning steps, tool calls and responses
+set_debug(True)
+
 
 class AgentIntent(str, Enum):
     ORDERS_BUSINESS = 'orders_business'
