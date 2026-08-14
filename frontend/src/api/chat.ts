@@ -6,6 +6,10 @@ export type ChatChunk = {
   tool?: string
   data?: unknown
   message?: string
+  // Set on the router's first `step` chunk to the agent handling this turn
+  // (e.g. 'orders_business'). Absent under the stub backend (no router) --
+  // treat a missing agent as "unattributed", not an error.
+  agent?: string
 }
 
 export type ChatRequest = {
@@ -22,7 +26,21 @@ export type ThinkingStep = {
   status: ThinkingStepStatus
   tool?: string
   detail?: string
+  startedAt?: number
+  durationMs?: number
 }
+
+/** One entry per AgentIntent value the backend router can choose (see
+ * apps/agents/langgraph_orchestrator.py::AgentIntent). 'all' is a
+ * frontend-only pseudo-tab, not a real agent. */
+export const AGENT_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'troubleshooting_service', label: 'Troubleshooting' },
+  { id: 'orders_business', label: 'Orders' },
+  { id: 'manuals', label: 'Manuals' },
+] as const
+
+export type AgentTabId = (typeof AGENT_TABS)[number]['id']
 
 const TOOL_LABELS: Record<string, string> = {
   get_machine_info: 'Machine context loaded',
@@ -74,6 +92,13 @@ export function toolStepDetail(tool: string, data: unknown): string | undefined 
   }
 
   return undefined
+}
+
+/** "for 1.2s" style label for a resolved ThinkingStep. Sub-150ms steps are
+ * skipped -- a duration that small reads as noise, not a useful signal. */
+export function formatStepDuration(durationMs: number | undefined): string | undefined {
+  if (durationMs === undefined || durationMs < 150) return undefined
+  return `${(durationMs / 1000).toFixed(1)}s`
 }
 
 function getCookie(name: string): string | null {

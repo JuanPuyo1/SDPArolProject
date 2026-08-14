@@ -20,7 +20,10 @@ import uuid
 from dataclasses import dataclass
 from typing import Iterable
 
-from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+from langchain_text_splitters import (
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 from qdrant_client import models
 
 from .client import get_client
@@ -34,7 +37,7 @@ _PARENT_CHUNK_OVERLAP = 150
 _CHILD_CHUNK_SIZE = 250
 _CHILD_CHUNK_OVERLAP = 40
 
-_PAGE_PATTERN = re.compile(r'<!--\s*Page\s+(\d+)\s*-->', re.IGNORECASE)
+_PAGE_PATTERN = re.compile(r"<!--\s*Page\s+(\d+)\s*-->", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -42,22 +45,24 @@ class IngestMetadata:
     """Per-document metadata threaded through parent/child ingestion."""
 
     machine_serial: str
-    doc_type: str = 'user_manual'
+    doc_type: str = "user_manual"
     source: str | None = None
     doc_id: str | None = None
     page_number: int | None = None
 
     def as_payload(self) -> dict:
         return {
-            'machine_serial': self.machine_serial,
-            'doc_type': self.doc_type,
-            'source': self.source,
-            'doc_id': self.doc_id,
-            'page_number': self.page_number,
+            "machine_serial": self.machine_serial,
+            "doc_type": self.doc_type,
+            "source": self.source,
+            "doc_id": self.doc_id,
+            "page_number": self.page_number,
         }
 
 
-def _splitters() -> tuple[RecursiveCharacterTextSplitter, RecursiveCharacterTextSplitter]:
+def _splitters() -> (
+    tuple[RecursiveCharacterTextSplitter, RecursiveCharacterTextSplitter]
+):
     parent = RecursiveCharacterTextSplitter(
         chunk_size=_PARENT_CHUNK_SIZE,
         chunk_overlap=_PARENT_CHUNK_OVERLAP,
@@ -78,12 +83,14 @@ def ingest_markdown_text(
     if not markdown_text or not markdown_text.strip():
         return 0
 
-    base_meta = metadata if isinstance(metadata, IngestMetadata) else IngestMetadata(**metadata)
+    base_meta = (
+        metadata if isinstance(metadata, IngestMetadata) else IngestMetadata(**metadata)
+    )
 
     headers_to_split_on = [
-        ('#', 'h1'),
-        ('##', 'h2'),
-        ('###', 'h3'),
+        ("#", "h1"),
+        ("##", "h2"),
+        ("###", "h3"),
     ]
     markdown_splitter = MarkdownHeaderTextSplitter(
         headers_to_split_on=headers_to_split_on,
@@ -118,14 +125,14 @@ def ingest_markdown_text(
                 chunk_page = int(c_pages[-1]) if c_pages else active_page
 
                 payload = {
-                    'machine_serial': base_meta.machine_serial,
-                    'doc_type': base_meta.doc_type,
-                    'source': base_meta.source,
-                    'doc_id': base_meta.doc_id,
-                    'page_number': chunk_page,
-                    'child_content': child_text,
-                    'parent_id': parent_id,
-                    'parent_content': parent_text,
+                    "machine_serial": base_meta.machine_serial,
+                    "doc_type": base_meta.doc_type,
+                    "source": base_meta.source,
+                    "doc_id": base_meta.doc_id,
+                    "page_number": chunk_page,
+                    "child_content": child_text,
+                    "parent_id": parent_id,
+                    "parent_content": parent_text,
                 }
                 all_child_texts.append(child_text)
                 all_payloads.append(payload)
@@ -136,7 +143,12 @@ def ingest_markdown_text(
     vectors = embed_batch(all_child_texts)
     points = [
         models.PointStruct(
-            id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{payload['machine_serial']}:{payload['parent_id']}:{payload['child_content']}")),
+            id=str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    f"{payload['machine_serial']}:{payload['parent_id']}:{payload['child_content']}",
+                )
+            ),
             vector=vector,
             payload=payload,
         )
@@ -150,7 +162,7 @@ def ingest_markdown_text(
         client.upsert(collection_name=collection, points=points[i : i + batch_size])
 
     log.info(
-        'Ingested %d Markdown child vectors for serial %s from %s',
+        "Ingested %d Markdown child vectors for serial %s from %s",
         len(points),
         base_meta.machine_serial,
         base_meta.source or base_meta.doc_id,
@@ -164,13 +176,15 @@ def ingest_text(
     metadata: dict | IngestMetadata,
 ) -> int:
     """Ingest a single document string. Dispatches to Markdown parser if headers or page markers exist."""
-    if '<!-- Page' in doc_text or '#' in doc_text:
+    if "<!-- Page" in doc_text or "#" in doc_text:
         return ingest_markdown_text(markdown_text=doc_text, metadata=metadata)
 
     if not doc_text or not doc_text.strip():
         return 0
 
-    meta = metadata if isinstance(metadata, IngestMetadata) else IngestMetadata(**metadata)
+    meta = (
+        metadata if isinstance(metadata, IngestMetadata) else IngestMetadata(**metadata)
+    )
     parent_splitter, child_splitter = _splitters()
     parent_chunks = parent_splitter.split_text(doc_text)
     all_child_texts: list[str] = []
@@ -183,9 +197,9 @@ def ingest_text(
         for child_text in child_chunks:
             payload = {
                 **base_payload,
-                'child_content': child_text,
-                'parent_id': parent_id,
-                'parent_content': parent_text,
+                "child_content": child_text,
+                "parent_id": parent_id,
+                "parent_content": parent_text,
             }
             all_child_texts.append(child_text)
             all_payloads.append(payload)
@@ -196,7 +210,12 @@ def ingest_text(
     vectors = embed_batch(all_child_texts)
     points = [
         models.PointStruct(
-            id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{payload['machine_serial']}:{payload['parent_id']}:{payload['child_content']}")),
+            id=str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    f"{payload['machine_serial']}:{payload['parent_id']}:{payload['child_content']}",
+                )
+            ),
             vector=vector,
             payload=payload,
         )

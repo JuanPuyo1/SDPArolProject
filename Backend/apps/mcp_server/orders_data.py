@@ -1,69 +1,73 @@
-"""Stand-in CSV-backed sample data for the Orders/Business tools.
+"""ORM-backed data access for the Orders/Business Agent's MCP tools.
 
-Not tenant-scoped by content — callers already validated the requester owns a
-real machine via scoping.get_owned_machine() before reading from here. This
-module just supplies representative example rows (multiple quote revisions,
-etc.) until the quoting/ERP/contracts systems are connected.
+Reads real Quote -> QuoteRevision -> QuoteLine and Order data (apps.quotes.models),
+scoped to a company. QuoteLine.price is already net of its QuoteRevision's
+discount_rate (see Backend/initiliaze_database.py's importer) -- revision/order
+totals are a plain sum of line prices, discount_rate is never reapplied here.
 """
 
 from __future__ import annotations
 
-from functools import lru_cache
-from pathlib import Path
-
-import pandas as pd
-
-DATA_DIR = Path(__file__).resolve().parents[3] / 'Data' / 'Relational'
+from apps.core.models import Company
+from apps.quotes.models import Order, QuoteRevision
 
 
-def _records(df: pd.DataFrame) -> list[dict]:
-    """DataFrame -> list[dict], coercing pandas NaN to None (Pydantic-friendly).
+def _revision_amount(revision: QuoteRevision) -> float:
+    return float(sum(line.price for line in revision.lines.all()))
 
-    DataFrame.where(cond, None) doesn't reliably substitute None into
-    pandas's native `str` dtype columns, so NaN is replaced per-value instead.
-    """
+
+def _revision_item_summary(revision: QuoteRevision) -> str:
+    descriptions = [line.description for line in revision.lines.all() if line.description]
+    return '; '.join(descriptions) if descriptions else revision.change_summary
+
+
+def quote_history(company: Company, quote_id: str | None = None) -> list[dict]:
+    revisions = (
+        QuoteRevision.objects.filter(quote__company=company)
+        .select_related('quote')
+        .prefetch_related('lines')
+        .order_by('quote_id', 'revision_number')
+    )
+    if quote_id:
+        revisions = revisions.filter(quote_id=quote_id)
     return [
-        {key: (None if pd.isna(value) else value) for key, value in row.items()}
-        for row in df.to_dict(orient='records')
+        {
+            'quote_id': revision.quote_id,
+            'revision_number': revision.revision_number,
+            'quote_date': revision.issued_at.isoformat(),
+            'status': revision.revision_status,
+            'item_summary': _revision_item_summary(revision),
+            'amount_eur': _revision_amount(revision),
+        }
+        for revision in revisions
     ]
 
 
-class OrdersDataStore:
-    def __init__(self, data_dir: Path = DATA_DIR):
-        quotes_path = data_dir / 'quotes.csv'
-        orders_path = data_dir / 'orders.csv'
-        contracts_path = data_dir / 'contracts.csv'
+def _order_revision(order: Order) -> QuoteRevision | None:
+    """The revision an order's items/total are drawn from: Order has no
+    direct FK to the revision it was confirmed from, so this picks the
+    quote's 'accepted' revision, falling back to its most recently issued
+    revision if none is marked accepted."""
+    revisions = list(order.quote.revisions.prefetch_related('lines').all())
+    if not revisions:
+        return None
+    accepted = [r for r in revisions if r.revision_status.lower() == 'accepted']
+    return max(accepted or revisions, key=lambda r: r.issued_at)
 
-        self.quotes = (
-            pd.read_csv(quotes_path)
-            if quotes_path.exists()
-            else pd.DataFrame(columns=['quote_id', 'revision_number', 'quote_date', 'status', 'item_summary', 'amount_eur'])
+
+def order_status(company: Company) -> list[dict]:
+    orders = Order.objects.filter(company=company).select_related('quote')
+    records = []
+    for order in orders:
+        revision = _order_revision(order)
+        records.append(
+            {
+                'order_id': order.order_id,
+                'quote_id': order.quote_id,
+                'order_date': order.order_date.isoformat(),
+                'status': order.order_status,
+                'item_summary': _revision_item_summary(revision) if revision else order.notes,
+                'amount_eur': _revision_amount(revision) if revision else 0.0,
+            }
         )
-        self.orders = (
-            pd.read_csv(orders_path)
-            if orders_path.exists()
-            else pd.DataFrame(columns=['order_id', 'quote_id', 'order_date', 'status', 'item_summary', 'amount_eur'])
-        )
-        self.contracts = (
-            pd.read_csv(contracts_path)
-            if contracts_path.exists()
-            else pd.DataFrame(columns=['contract_id', 'type', 'start_date', 'end_date'])
-        )
-
-    def quote_history(self, quote_id: str | None = None) -> list[dict]:
-        df = self.quotes
-        if quote_id:
-            df = df[df.quote_id == quote_id]
-        df = df.sort_values(['quote_id', 'revision_number'])
-        return _records(df)
-
-    def order_status(self) -> list[dict]:
-        return _records(self.orders)
-
-    def contract_info(self) -> list[dict]:
-        return _records(self.contracts)
-
-
-@lru_cache(maxsize=1)
-def get_store() -> OrdersDataStore:
-    return OrdersDataStore()
+    return records

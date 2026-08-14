@@ -13,6 +13,7 @@ import {
   logout as logoutRequest,
   type AuthUser,
 } from '../api/auth'
+import { clearPersistedChat } from '../api/chatStorage'
 
 type AuthContextValue = {
   user: AuthUser | null
@@ -53,9 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
+    const username = user?.username
     await logoutRequest()
     setUser(null)
-  }, [])
+    if (username) clearPersistedChat(username)
+  }, [user])
 
   const value = useMemo(
     () => ({ user, loading, login, logout, refreshUser }),

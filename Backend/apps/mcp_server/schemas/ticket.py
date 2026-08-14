@@ -1,10 +1,33 @@
 """Schemas for service tickets (Service Agent)."""
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from .common import ScopedContext
+
+
+class ListMaintenanceTicketsInput(ScopedContext):
+    status: str | None = Field(
+        default=None,
+        description="Optional filter, e.g. 'Open', 'In progress', 'Resolved', 'Closed', 'Waiting for parts'.",
+    )
+    limit: int = Field(default=20, ge=1, le=100)
+
+
+class MaintenanceTicketRecord(BaseModel):
+    ticket_id: str
+    ticket_type: str
+    ticket_status: str
+    priority: str
+    created_date: date
+    owner_role: str
+    alarm_id: str | None = None
+
+
+class ListMaintenanceTicketsOutput(BaseModel):
+    tickets: list[MaintenanceTicketRecord]
 
 
 class CreateTicketInput(ScopedContext):

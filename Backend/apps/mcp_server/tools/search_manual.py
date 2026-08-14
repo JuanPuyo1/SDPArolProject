@@ -20,7 +20,6 @@ def search_manual(params: SearchManualInput) -> SearchManualOutput:
     raw_hits = rag_search.search_manuals(
         query=params.query,
         machine_serial=machine.serial_number,
-        machine_model=machine.model,
         top_k=params.top_k,
     )
 

@@ -13,45 +13,66 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from langchain_core.messages import BaseMessage
-from langchain_core.tools import tool
 
-from apps.agents.agent_kit import AgentTool, build_llm, load_machine_context, run_tool_calling_loop
+from apps.agents.agent_kit import (
+    AgentTool,
+    build_agent_tools,
+    build_llm,
+    load_machine_context,
+    run_tool_calling_loop,
+)
 from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
-from apps.mcp_server import registry
+
+# The two registry.py domains this agent currently merges into one; split
+# them out here (not by retagging the registry) if Service ever becomes its
+# own agent.
+_OWNED_AGENT_TAGS = {"troubleshooting", "service"}
+
+# Registry.py owns each tool's name/description/schema; this only supplies
+# the UI-facing progress label shown while it runs.
+_STEP_LABELS = {
+    "search_error_codes": "Searching error codes and recommended actions…",
+    "list_alarms": "Checking alarm history…",
+    "create_ticket": "Opening field-support ticket…",
+    "list_maintenance_tickets": "Checking ticket history…",
+}
 
 SYSTEM_PROMPT = """You are the Troubleshooting & Service agent for AROL's \
 customer platform, covering industrial capping/filling machines. You \
-diagnose alarms, faults, and breakdowns, and you open field-support tickets \
-when the user needs a technician. You do NOT handle quotes, orders, or \
-contracts — if asked about those, say that's handled by a different agent \
-rather than guessing. Always call a tool to fetch real data before \
-answering — never invent error codes, manual passages, telemetry readings, \
-or ticket IDs. Only call create_ticket when the user is actually asking for \
-a technician/field support, not for a diagnosis alone. Keep answers concise \
-and cite error codes or ticket IDs so the frontend can link to them."""
+diagnose alarms, faults, and breakdowns using the machine's real alarm \
+history, and you open or look up field-support tickets when the user needs \
+a technician. You do NOT handle quotes, orders, contracts, telemetry trend \
+questions, or general manual/documentation lookups — if asked about those, \
+say that's handled by a different agent rather than guessing. Always call \
+a tool to fetch real data before answering — never invent error codes, \
+alarm codes, or ticket IDs. Only call create_ticket when the user is \
+actually asking for a technician/field support, not for a diagnosis alone; \
+use list_maintenance_tickets first to check whether a relevant ticket \
+already exists. Keep answers concise and cite alarm codes or ticket IDs so \
+the frontend can link to them."""
 
 
 def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
-    scope = {'customer_id': customer_id, 'machine_serial': machine_serial}
+    scope = {"customer_id": customer_id, "machine_serial": machine_serial}
 
     @tool
     def search_manual(query: str) -> dict:
         """Search the machine manual for relevant passages/procedures.
         query: natural-language or keyword query."""
-        return registry.invoke('search_manual', {**scope, 'query': query})
+        return registry.invoke("search_manual", {**scope, "query": query})
 
     @tool
     def query_telemetry(metric: str) -> dict:
         """Query recent telemetry points for a metric on the scoped machine,
         e.g. cycle_count, temperature, pressure."""
-        return registry.invoke('query_telemetry', {**scope, 'metric': metric})
+        return registry.invoke("query_telemetry", {**scope, "metric": metric})
 
     @tool
     def create_ticket(
         subject: str,
         description: str,
-        priority: str = 'medium',
-        category: str = 'support',
+        priority: str = "medium",
+        category: str = "support",
     ) -> dict:
         """Open a field-support/service ticket for the scoped machine. Only
         call this when the user explicitly wants a technician or field
@@ -59,25 +80,25 @@ def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
         priority: one of low, medium, high, critical.
         category: one of support, maintenance, spare_parts, other."""
         return registry.invoke(
-            'create_ticket',
+            "create_ticket",
             {
                 **scope,
-                'subject': subject,
-                'description': description,
-                'priority': priority,
-                'category': category,
+                "subject": subject,
+                "description": description,
+                "priority": priority,
+                "category": category,
             },
         )
 
     return [
-        AgentTool(search_manual, 'Searching manual for related procedures…'),
-        AgentTool(query_telemetry, 'Querying recent telemetry readings…'),
-        AgentTool(create_ticket, 'Opening field-support ticket…'),
+        AgentTool(search_manual, "Searching manual for related procedures…"),
+        AgentTool(query_telemetry, "Querying recent telemetry readings…"),
+        AgentTool(create_ticket, "Opening field-support ticket…"),
     ]
 
 
 class TroubleshootingServiceAgent:
-    AGENT_ID = 'troubleshooting_service'
+    AGENT_ID = "troubleshooting_service"
 
     def run(
         self,
@@ -92,10 +113,10 @@ class TroubleshootingServiceAgent:
     ) -> Iterator[OrchestratorChunk]:
         machine_ctx: list[dict] = []
         yield from load_machine_context(customer_id, machine_serial, machine_ctx)
-        if machine_ctx[0]['status'] != 'ok':
+        if machine_ctx[0]["status"] != "ok":
             yield OrchestratorChunk(
-                type='error',
-                message=machine_ctx[0].get('message', 'Machine lookup failed.'),
+                type="error",
+                message=machine_ctx[0].get("message", "Machine lookup failed."),
             )
             return
 
@@ -104,10 +125,10 @@ class TroubleshootingServiceAgent:
 
         user_message = message
         if attachments:
-            names = ', '.join(a.filename for a in attachments)
+            names = ", ".join(a.filename for a in attachments)
             user_message += (
-                f'\n\n[The user attached {len(attachments)} file(s): {names}. '
-                'Attachment analysis is not wired yet — acknowledge receipt only.]'
+                f"\n\n[The user attached {len(attachments)} file(s): {names}. "
+                "Attachment analysis is not wired yet — acknowledge receipt only.]"
             )
 
         yield from run_tool_calling_loop(
