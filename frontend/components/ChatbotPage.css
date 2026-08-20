@@ -32,35 +32,92 @@
   color: #c0392b;
 }
 
-.chatbot-page__tabs {
+.chatbot-page__session-tabs {
   display: flex;
-  gap: 4px;
-  padding: 4px;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chatbot-page__session-tab {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
-  width: fit-content;
 }
 
-.chatbot-page__tab {
+.chatbot-page__session-tab--active {
+  border-color: var(--arol-teal);
+}
+
+.chatbot-page__session-tab-label {
   border: none;
   background: transparent;
   border-radius: 7px;
-  padding: 6px 12px;
+  padding: 6px 10px;
   font-size: 13px;
   color: var(--text);
   cursor: pointer;
   transition: background-color 120ms, color 120ms;
 }
 
-.chatbot-page__tab:hover {
+.chatbot-page__session-tab-label:hover {
   color: var(--text-h);
 }
 
-.chatbot-page__tab--active {
+.chatbot-page__session-tab--active .chatbot-page__session-tab-label {
   background: var(--arol-teal);
   color: #06231f;
   font-weight: 600;
+}
+
+.chatbot-page__session-tab-action {
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms;
+}
+
+.chatbot-page__session-tab-action:hover {
+  background: var(--border);
+  color: var(--text-h);
+}
+
+.chatbot-page__session-tab-close {
+  font-size: 15px;
+}
+
+.chatbot-page__session-tab-new {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: transparent;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms;
+}
+
+.chatbot-page__session-tab-new:hover:not(:disabled) {
+  border-color: var(--arol-teal);
+  color: var(--text-h);
+}
+
+.chatbot-page__session-tab-new:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .chatbot-page__messages {
@@ -248,8 +305,9 @@
     font-size: 16px;
   }
 
-  .chatbot-page__tabs {
+  .chatbot-page__session-tabs {
     width: 100%;
     overflow-x: auto;
+    flex-wrap: nowrap;
   }
 }

@@ -20,9 +20,7 @@ SYSTEM_PROMPT = """You are the Orders/Business agent for AROL's customer \
 platform. You answer questions about quotes (including revision history), \
 order status, and spare parts for industrial capping/filling machines. \
 You do NOT handle service tickets, troubleshooting, or contract/warranty \
-lookups — if asked about a machine fault, breakdown, open service ticket, \
-or contract details, say that's handled by a different agent rather than \
-guessing. Always call a tool to fetch real data before answering — never \
+lookups. Always call a tool to fetch real data before answering — never \
 invent quote/order numbers, dates, statuses, or part numbers. Keep answers \
 concise and cite the relevant quote/order/part IDs so the frontend can \
 link to them."""
@@ -59,6 +57,8 @@ class OrdersBusinessAgent:
         history: list[BaseMessage] | None = None,
         new_messages_sink: list[BaseMessage] | None = None,
         llm=None,
+        emit_tokens: bool = True,
+        answer_sink: list[str] | None = None,
     ) -> Iterator[OrchestratorChunk]:
         machine_ctx: list[dict] = []
         yield from load_machine_context(customer_id, machine_serial, machine_ctx)
@@ -80,4 +80,6 @@ class OrdersBusinessAgent:
             history=history,
             new_messages_sink=new_messages_sink,
             machine_context=machine_ctx[0],
+            emit_tokens=emit_tokens,
+            answer_sink=answer_sink,
         )

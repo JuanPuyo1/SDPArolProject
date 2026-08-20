@@ -82,6 +82,15 @@ def focus_instruction(machine_envelope: dict[str, Any] | None) -> str:
     plant = machine.get('plantLocation') or machine.get('plant_location') or 'unknown plant'
     return _FOCUS_INSTRUCTION.format(model=model_code, serial=serial, plant=plant)
 
+_COLLABORATION_INSTRUCTION = """
+
+You are one of several specialists answering in parallel. Another agent may \
+already be handling other parts of this request. Answer your part fully \
+using your tools and say nothing about which agent handles what -- a \
+synthesizer merges the replies. If your part is entirely outside your tools, \
+return one short sentence saying so, and never refuse the whole request \
+because one sub-part is out of domain."""
+
 
 class AgentTool(NamedTuple):
     """A LangChain tool paired with the `step` chunk label shown while it runs."""
@@ -129,27 +138,31 @@ def mcp_tool(
         for field_name, field in spec.input_model.model_fields.items()
         if field_name not in scoped_fields
     }
-    if spec.requires_machine_scope:
-        public_fields['target_machine_serial'] = (
-            str | None,
-            PydanticField(
-                default=None,
-                description=(
-                    "Optional serial of another machine owned by the same customer. "
-                    "Omit to use the operator's current focus machine."
-                ),
-            ),
-        )
+    # if spec.requires_machine_scope:
+    #     public_fields['target_machine_serial'] = (
+    #         str | None,
+    #         PydanticField(
+    #             default=None,
+    #             description=(
+    #                 "Optional serial of another machine owned by the same customer. "
+    #                 "Omit to use the operator's current focus machine."
+    #             ),
+    #         ),
+    #     )
     args_schema = create_model(f'{spec.name}_Args', **public_fields)
     scope = {'customer_id': customer_id, 'machine_serial': machine_serial}
 
     def _call(**kwargs: Any) -> dict:
-        target = kwargs.pop('target_machine_serial', None)
         params = {**kwargs, **{field: scope[field] for field in scoped_fields}}
-        if 'machine_serial' in scoped_fields:
-            stripped = str(target).strip() if target else ''
-            params['machine_serial'] = stripped or scope['machine_serial']
         return registry.invoke(spec.name, params)
+
+    # def _call(**kwargs: Any) -> dict:
+    #     target = kwargs.pop('target_machine_serial', None)
+    #     params = {**kwargs, **{field: scope[field] for field in scoped_fields}}
+    #     if 'machine_serial' in scoped_fields:
+    #         stripped = str(target).strip() if target else ''
+    #         params['machine_serial'] = stripped or scope['machine_serial']
+    #     return registry.invoke(spec.name, params)
 
     tool = StructuredTool.from_function(
         func=_call,
@@ -198,30 +211,31 @@ def build_agent_tools(
                     step_label=step_labels.get(meta['name']),
                 ),
             )
-    return with_fleet_lookup(
-        tools,
-        customer_id=customer_id,
-        machine_serial=machine_serial,
-    )
+    return tools
 
-
-def with_fleet_lookup(
-    tools: list[AgentTool],
-    *,
-    customer_id: str,
-    machine_serial: str,
-) -> list[AgentTool]:
-    """Append list_customer_machines so agents can answer fleet questions."""
-    return [
-        *tools,
-        mcp_tool(
-            'list_customer_machines',
-            customer_id=customer_id,
-            machine_serial=machine_serial,
-            step_label='Listing your company machines…',
-        ),
-    ]
-
+    # return with_fleet_lookup(
+    #         tools,
+    #         customer_id=customer_id,
+    #         machine_serial=machine_serial,
+    #     )
+    #
+    #
+    # def with_fleet_lookup(
+    #     tools: list[AgentTool],
+    #     *,
+    #     customer_id: str,
+    #     machine_serial: str,
+    # ) -> list[AgentTool]:
+    #     """Append list_customer_machines so agents can answer fleet questions."""
+    #     return [
+    #         *tools,
+    #         mcp_tool(
+    #             'list_customer_machines',
+    #             customer_id=customer_id,
+    #             machine_serial=machine_serial,
+    #             step_label='Listing your company machines…',
+    #         ),
+    #     ]
 
 def load_machine_context(
     customer_id: str,
@@ -252,6 +266,8 @@ def run_tool_calling_loop(
     history: list[BaseMessage] | None = None,
     new_messages_sink: list[BaseMessage] | None = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    emit_tokens: bool = True,
+    answer_sink: list[str] | None = None,
     machine_context: dict[str, Any] | None = None,
 ) -> Iterator[OrchestratorChunk]:
     """Stream Claude turns until it stops calling tools.
@@ -287,7 +303,7 @@ def run_tool_calling_loop(
     tools_by_name = {t.tool.name: t for t in tools}
     messages: list[BaseMessage] = [
         SystemMessage(
-            content=system_prompt + _ACCESS_DENIAL_INSTRUCTION + focus_instruction(machine_context),
+            content=system_prompt + _ACCESS_DENIAL_INSTRUCTION + _COLLABORATION_INSTRUCTION + focus_instruction(machine_context),
         ),
         *(history or []),
         HumanMessage(content=user_message),
@@ -305,10 +321,13 @@ def run_tool_calling_loop(
         messages.append(accumulated)
 
         if not accumulated.tool_calls:
-            for piece in buffered_text:
-                yield OrchestratorChunk(type='token', content=piece)
-            if new_messages_sink is not None:
-                new_messages_sink.extend(messages[turn_start:])
+            if emit_tokens:
+                for piece in buffered_text:
+                    yield OrchestratorChunk(type='token', content=piece)
+            if answer_sink is not None:
+                answer_sink.append(''.join(buffered_text))
+            if new_messages_sink is not None:  # <-- restore
+                new_messages_sink.extend(messages[turn_start:])  # <-- restore
             return
 
         for call in accumulated.tool_calls:

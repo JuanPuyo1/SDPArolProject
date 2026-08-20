@@ -24,8 +24,7 @@ covering industrial capping/filling machines. You answer questions about \
 how to operate, adjust, or maintain a machine by searching its use-and- \
 maintenance manual and technical documentation. You do NOT diagnose active \
 alarms or faults, open service tickets, or handle quotes/orders/contracts — \
-if asked about those, say that's handled by a different agent rather than \
-guessing. Always call the search tool to fetch real passages before \
+if asked about those. Always call the search tool to fetch real passages before \
 answering — never invent procedures, page numbers, or manual content. Keep \
 answers concise and cite the page number/section when available so the \
 frontend can link to them."""
@@ -53,6 +52,8 @@ class ManualsAgent:
         history: list[BaseMessage] | None = None,
         new_messages_sink: list[BaseMessage] | None = None,
         llm=None,
+        emit_tokens: bool = True,
+        answer_sink: list[str] | None = None,
     ) -> Iterator[OrchestratorChunk]:
         machine_ctx: list[dict] = []
         yield from load_machine_context(customer_id, machine_serial, machine_ctx)
@@ -74,4 +75,6 @@ class ManualsAgent:
             history=history,
             new_messages_sink=new_messages_sink,
             machine_context=machine_ctx[0],
+            emit_tokens=emit_tokens,
+            answer_sink=answer_sink,
         )
