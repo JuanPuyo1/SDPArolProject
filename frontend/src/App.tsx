@@ -9,6 +9,7 @@ import OrdersPage from '../components/OrdersPage'
 import MaintenanceTicketsPage from '../components/MaintenanceTicketsPage'
 import SelectMachinePage from '../components/SelectMachinePage'
 import ScanQrPage from '../components/ScanQrPage'
+import ScanQrErrorBoundary from '../components/ScanQrErrorBoundary'
 import MachineDeepLinkPage from '../components/MachineDeepLinkPage'
 import ProtectedRoute from '../components/ProtectedRoute'
 import RequireMachineRoute, { MachineFocusGate } from '../components/RequireMachineRoute'
@@ -38,7 +39,9 @@ function AppShell() {
             path="/scan"
             element={
               <ProtectedRoute>
-                <ScanQrPage />
+                <ScanQrErrorBoundary>
+                  <ScanQrPage />
+                </ScanQrErrorBoundary>
               </ProtectedRoute>
             }
           />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { fetchMachine } from '../src/api/machines'
 import { useActiveMachine } from '../src/hooks/useActiveMachine'
 import { useMachines } from '../src/hooks/useMachine'
@@ -32,9 +32,18 @@ export default function SelectMachinePage() {
           Scan the QR code on the equipment, or pick a machine assigned to your
           company.
         </p>
-        <Link to="/scan" className="btn btn--primary select-machine__scan">
-          Scan QR code
-        </Link>
+        <a
+          href="/scan"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn btn--primary select-machine__scan"
+        >
+          Scan QR code (new tab)
+        </a>
+        <p className="select-machine__scan-note">
+          Opens the camera scanner in a separate tab so a camera error does not blank the main
+          app. Use paste or upload there if the camera is blocked on HTTP.
+        </p>
       </header>
 
       {loading && <p className="select-machine__status">Loading your fleet…</p>}

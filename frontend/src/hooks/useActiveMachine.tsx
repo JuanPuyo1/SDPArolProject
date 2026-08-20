@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   clearMachineFocus,
   loadMachineFocus,
@@ -15,6 +8,10 @@ import {
 } from '../api/machineFocus'
 import type { Machine } from '../types/machine'
 import { useAuth } from './useAuth'
+
+function focusStorageKey(username: string): string {
+  return `arol.focus.${username}`
+}
 
 type ActiveMachineContextValue = {
   focus: MachineFocus | null
@@ -55,6 +52,27 @@ export function ActiveMachineProvider({ children }: { children: ReactNode }) {
   const clearFocus = useCallback(() => {
     setFocus(null)
     if (user) clearMachineFocus(user.username)
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return undefined
+    const key = focusStorageKey(user.username)
+
+    function onStorage(event: StorageEvent) {
+      if (event.key !== key) return
+      if (!event.newValue) {
+        setFocus(null)
+        return
+      }
+      try {
+        setFocus(JSON.parse(event.newValue) as MachineFocus)
+      } catch {
+        setFocus(null)
+      }
+    }
+
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [user])
 
   const ready = !loading && (user ? focusUser === user.username : focusUser === null)
