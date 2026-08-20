@@ -53,48 +53,12 @@ the frontend can link to them."""
 
 
 def _build_tools(customer_id: str, machine_serial: str) -> list[AgentTool]:
-    scope = {"customer_id": customer_id, "machine_serial": machine_serial}
-
-    @tool
-    def search_manual(query: str) -> dict:
-        """Search the machine manual for relevant passages/procedures.
-        query: natural-language or keyword query."""
-        return registry.invoke("search_manual", {**scope, "query": query})
-
-    @tool
-    def query_telemetry(metric: str) -> dict:
-        """Query recent telemetry points for a metric on the scoped machine,
-        e.g. cycle_count, temperature, pressure."""
-        return registry.invoke("query_telemetry", {**scope, "metric": metric})
-
-    @tool
-    def create_ticket(
-        subject: str,
-        description: str,
-        priority: str = "medium",
-        category: str = "support",
-    ) -> dict:
-        """Open a field-support/service ticket for the scoped machine. Only
-        call this when the user explicitly wants a technician or field
-        service, not for a diagnosis alone.
-        priority: one of low, medium, high, critical.
-        category: one of support, maintenance, spare_parts, other."""
-        return registry.invoke(
-            "create_ticket",
-            {
-                **scope,
-                "subject": subject,
-                "description": description,
-                "priority": priority,
-                "category": category,
-            },
-        )
-
-    return [
-        AgentTool(search_manual, "Searching manual for related procedures…"),
-        AgentTool(query_telemetry, "Querying recent telemetry readings…"),
-        AgentTool(create_ticket, "Opening field-support ticket…"),
-    ]
+    return build_agent_tools(
+        _OWNED_AGENT_TAGS,
+        customer_id=customer_id,
+        machine_serial=machine_serial,
+        step_labels=_STEP_LABELS,
+    )
 
 
 class TroubleshootingServiceAgent:
