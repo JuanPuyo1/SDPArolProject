@@ -24,7 +24,8 @@ const links: NavLinkItem[] = [
 
 export default function NavBar() {
   const { user, loading, logout } = useAuth()
-  const { focus } = useActiveMachine()
+  const { focus, ready } = useActiveMachine()
+  const showAppNav = ready && Boolean(focus)
 
   async function handleLogout() {
     await logout()
@@ -36,27 +37,33 @@ export default function NavBar() {
   })
 
   return (
-    <header className="nav-bar">
+    <header className={`nav-bar${showAppNav ? '' : ' nav-bar--minimal'}`}>
       <div className="nav-bar__brand">
         <span className="nav-bar__mark">AROL</span>
         <span className="nav-bar__product">Customer Platform</span>
       </div>
-      <nav className="nav-bar__links" aria-label="Main navigation">
-        {visibleLinks.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.to === '/machine'}
-            className={({ isActive }) =>
-              isActive ? 'nav-bar__link nav-bar__link--active' : 'nav-bar__link'
-            }
-          >
-            {link.label}
-          </NavLink>
-        ))}
-      </nav>
+
+      {showAppNav ? (
+        <nav className="nav-bar__links" aria-label="Main navigation">
+          {visibleLinks.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              end={link.to === '/machine'}
+              className={({ isActive }) =>
+                isActive ? 'nav-bar__link nav-bar__link--active' : 'nav-bar__link'
+              }
+            >
+              {link.label}
+            </NavLink>
+          ))}
+        </nav>
+      ) : (
+        <p className="nav-bar__onboarding">Select or scan a machine to open the app menu.</p>
+      )}
+
       <div className="nav-bar__auth">
-        {focus && (
+        {showAppNav && focus && (
           <Link to="/select" className="nav-bar__machine" title="Change machine">
             S/N {focus.serialNumber}
           </Link>

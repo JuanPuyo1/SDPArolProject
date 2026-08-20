@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useAuth } from '../src/hooks/useAuth'
+import { useActiveMachine } from '../src/hooks/useActiveMachine'
 import type { UserVisibility } from '../src/types/auth'
 import ProtectedRoute from './ProtectedRoute'
 
@@ -19,11 +20,13 @@ export default function VisibilityRoute({ children, allowed }: VisibilityRoutePr
 
 function VisibilityGate({ children, allowed }: VisibilityRouteProps) {
   const { user } = useAuth()
+  const { focus, ready } = useActiveMachine()
   const location = useLocation()
   const visibility = user?.visibility
 
   if (!visibility || !allowed.includes(visibility)) {
-    return <Navigate to="/machine" replace state={{ from: location.pathname }} />
+    const fallback = ready && focus ? '/machine' : '/select'
+    return <Navigate to={fallback} replace state={{ from: location.pathname }} />
   }
 
   return children

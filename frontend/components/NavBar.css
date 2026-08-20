@@ -35,6 +35,32 @@
   color: var(--arol-teal);
 }
 
+.nav-bar--minimal {
+  grid-template-areas: 'brand auth';
+  align-items: center;
+}
+
+@media (min-width: 768px) {
+  .nav-bar--minimal {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .nav-bar--minimal .nav-bar__onboarding {
+    display: block;
+    flex: 1;
+    margin: 0 16px;
+    font-size: 13px;
+    color: #c5d0dc;
+    text-align: center;
+  }
+}
+
+.nav-bar__onboarding {
+  display: none;
+  margin: 0;
+}
+
 .nav-bar__links {
   grid-area: links;
   display: flex;
