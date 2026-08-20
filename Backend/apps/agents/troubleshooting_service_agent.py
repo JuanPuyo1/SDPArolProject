@@ -104,6 +104,6 @@ class TroubleshootingServiceAgent:
             history=history,
             new_messages_sink=new_messages_sink,
             emit_tokens=emit_tokens,
-            answer_sink=answer_sink
+            answer_sink=answer_sink,
             machine_context=machine_ctx[0],
         )

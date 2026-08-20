@@ -23,8 +23,12 @@ export type PersistedChatState = {
   sessions: PersistedSession[]
 }
 
-function storageKey(username: string): string {
-  return `arol.chat.${username}`
+function storageKeyPrefix(username: string): string {
+  return `arol.chat.${username}.`
+}
+
+function storageKey(username: string, machineSerial: string): string {
+  return `${storageKeyPrefix(username)}${machineSerial}`
 }
 
 function isExpired(session: PersistedSession): boolean {
@@ -37,7 +41,7 @@ function isExpired(session: PersistedSession): boolean {
  * sessions are silently dropped rather than expiring the whole set. */
 export function loadPersistedChat(username: string, machineSerial: string): PersistedChatState | null {
   try {
-    const raw = localStorage.getItem(storageKey(username))
+    const raw = localStorage.getItem(storageKey(username, machineSerial))
     if (!raw) return null
     const parsed = JSON.parse(raw) as PersistedChatState
     if (parsed.machineSerial !== machineSerial) return null
@@ -54,15 +58,19 @@ export function loadPersistedChat(username: string, machineSerial: string): Pers
 
 export function savePersistedChat(username: string, state: PersistedChatState): void {
   try {
-    localStorage.setItem(storageKey(username), JSON.stringify(state))
+    localStorage.setItem(storageKey(username, state.machineSerial), JSON.stringify(state))
   } catch {
     // best-effort -- a full/unavailable localStorage shouldn't break the chat
   }
 }
 
+/** Clears every machine's persisted chat for this user (e.g. on logout). */
 export function clearPersistedChat(username: string): void {
   try {
-    localStorage.removeItem(storageKey(username))
+    const prefix = storageKeyPrefix(username)
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(prefix)) localStorage.removeItem(key)
+    }
   } catch {
     // best-effort
   }
