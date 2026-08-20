@@ -79,4 +79,5 @@ class OrdersBusinessAgent:
             user_message=message,
             history=history,
             new_messages_sink=new_messages_sink,
+            machine_context=machine_ctx[0],
         )

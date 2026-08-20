@@ -1,21 +1,13 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMachine, useMachines } from '../src/hooks/useMachine'
+import { useActiveMachine } from '../src/hooks/useActiveMachine'
+import { useMachine } from '../src/hooks/useMachine'
 import './ManualPage.css'
 
 export default function ManualPage() {
-  const { machines, loading: listLoading, error: listError } = useMachines()
-  const [selectedSerial, setSelectedSerial] = useState<string | null>(null)
+  const { focus } = useActiveMachine()
+  const { machine, loading, error } = useMachine(focus?.serialNumber ?? null)
 
-  useEffect(() => {
-    if (machines.length > 0 && !selectedSerial) {
-      setSelectedSerial(machines[0].serialNumber)
-    }
-  }, [machines, selectedSerial])
-
-  const { machine, loading, error } = useMachine(selectedSerial)
-
-  if (listLoading || loading) {
+  if (loading) {
     return (
       <div className="manual-page">
         <p className="manual-page__status">Loading manual…</p>
@@ -23,11 +15,11 @@ export default function ManualPage() {
     )
   }
 
-  if (listError || error || !machine) {
+  if (error || !machine) {
     return (
       <div className="manual-page">
         <p className="manual-page__status manual-page__status--error">
-          {listError || error || 'No machine found for this account.'}
+          {error || 'No machine found for this account.'}
         </p>
       </div>
     )
@@ -37,23 +29,6 @@ export default function ManualPage() {
 
   return (
     <div className="manual-page">
-      {machines.length > 1 && (
-        <div className="manual-page__picker">
-          <label htmlFor="manual-machine-select">Machine manual</label>
-          <select
-            id="manual-machine-select"
-            value={machine.serialNumber}
-            onChange={(event) => setSelectedSerial(event.target.value)}
-          >
-            {machines.map((item) => (
-              <option key={item.machineId} value={item.serialNumber}>
-                {item.modelCode} · S/N {item.serialNumber} · {item.plantLocation}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
       <div className="manual-page__bar">
         <div>
           <h1>Use &amp; maintenance manual</h1>

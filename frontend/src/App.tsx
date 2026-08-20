@@ -7,7 +7,11 @@ import WelcomePage from '../components/WelcomePage'
 import ProfilePage from '../components/ProfilePage'
 import OrdersPage from '../components/OrdersPage'
 import MaintenanceTicketsPage from '../components/MaintenanceTicketsPage'
+import SelectMachinePage from '../components/SelectMachinePage'
+import ScanQrPage from '../components/ScanQrPage'
+import MachineDeepLinkPage from '../components/MachineDeepLinkPage'
 import ProtectedRoute from '../components/ProtectedRoute'
+import RequireMachineRoute, { MachineFocusGate } from '../components/RequireMachineRoute'
 import VisibilityRoute from '../components/VisibilityRoute'
 import { useAuth } from './hooks/useAuth'
 import './App.css'
@@ -23,26 +27,52 @@ function AppShell() {
           <Route path="/" element={<WelcomePage />} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route
-            path="/machine"
+            path="/select"
             element={
               <ProtectedRoute>
-                <MachineInfoPage />
+                <SelectMachinePage />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/scan"
+            element={
+              <ProtectedRoute>
+                <ScanQrPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/m/:id"
+            element={
+              <ProtectedRoute>
+                <MachineDeepLinkPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/machine"
+            element={
+              <RequireMachineRoute>
+                <MachineInfoPage />
+              </RequireMachineRoute>
             }
           />
           <Route
             path="/manual"
             element={
-              <ProtectedRoute>
+              <RequireMachineRoute>
                 <ManualPage />
-              </ProtectedRoute>
+              </RequireMachineRoute>
             }
           />
           <Route
             path="/orders"
             element={
               <VisibilityRoute allowed={['full', 'commercial']}>
-                <OrdersPage />
+                <MachineFocusGate>
+                  <OrdersPage />
+                </MachineFocusGate>
               </VisibilityRoute>
             }
           />
@@ -50,16 +80,18 @@ function AppShell() {
             path="/maintenance"
             element={
               <VisibilityRoute allowed={['full', 'technician']}>
-                <MaintenanceTicketsPage />
+                <MachineFocusGate>
+                  <MaintenanceTicketsPage />
+                </MachineFocusGate>
               </VisibilityRoute>
             }
           />
           <Route
             path="/chatbot"
             element={
-              <ProtectedRoute>
+              <RequireMachineRoute>
                 <ChatbotPage />
-              </ProtectedRoute>
+              </RequireMachineRoute>
             }
           />
           <Route

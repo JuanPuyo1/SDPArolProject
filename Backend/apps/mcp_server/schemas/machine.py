@@ -24,7 +24,7 @@ class ListCustomerMachinesInput(BaseModel):
 
 
 class MachineSummary(BaseModel):
-    id: int
+    id: str
     serial_number: str
     model: str
     full_model: str

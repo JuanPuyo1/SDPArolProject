@@ -1,0 +1,114 @@
+.select-machine {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 32px 20px;
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.select-machine__eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--arol-teal-dark);
+  margin-bottom: 8px;
+}
+
+.select-machine__title {
+  margin: 0 0 8px;
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
+}
+
+.select-machine__lead {
+  margin: 0 0 16px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.select-machine__scan {
+  display: inline-flex;
+}
+
+.select-machine__status {
+  margin: 0;
+  color: var(--text);
+}
+
+.select-machine__status--error {
+  color: #b42318;
+}
+
+.select-machine__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.select-machine__card {
+  width: 100%;
+  text-align: left;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: inherit;
+}
+
+.select-machine__card:hover {
+  border-color: var(--arol-teal);
+  box-shadow: var(--shadow);
+}
+
+.select-machine__model {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.select-machine__meta {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.select-machine .btn--primary,
+.scan-qr .btn--primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 2px solid transparent;
+  cursor: pointer;
+  background: var(--arol-teal);
+  color: #fff;
+  min-height: 44px;
+}
+
+.select-machine .btn--ghost,
+.scan-qr .btn--ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 2px solid var(--arol-navy);
+  background: transparent;
+  color: var(--arol-navy);
+  cursor: pointer;
+  min-height: 44px;
+}

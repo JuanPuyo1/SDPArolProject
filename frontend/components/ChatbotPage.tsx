@@ -3,11 +3,11 @@ import type { SyntheticEvent } from 'react'
 import ChatMessage from './ChatMessage'
 import type { ChatAttachment, ChatMessageData } from './ChatMessage'
 import { useAuth } from '../src/hooks/useAuth'
-import { useDefaultMachine } from '../src/hooks/useMachine'
+import { useActiveMachine } from '../src/hooks/useActiveMachine'
+import { useMachine } from '../src/hooks/useMachine'
 import { useChatStream } from '../src/hooks/useChat'
 import { AGENT_TABS, type AgentTabId } from '../src/api/chat'
 import { loadPersistedChat, savePersistedChat } from '../src/api/chatStorage'
-// @ts-expect-error Side-effect CSS import resolved by bundler
 import './ChatbotPage.css'
 
 const ACCEPTED_TYPES = 'image/*,.txt,.text/plain,.pdf,application/pdf'
@@ -34,7 +34,10 @@ function stripAttachmentsForStorage(messages: ChatMessageData[]): ChatMessageDat
 
 export default function ChatbotPage() {
   const { user } = useAuth()
-  const { machine, loading: machineLoading, error: machineError } = useDefaultMachine()
+  const { focus } = useActiveMachine()
+  const { machine, loading: machineLoading, error: machineError } = useMachine(
+    focus?.serialNumber ?? null,
+  )
   const serial = machine?.serialNumber ?? null
   const modelLabel = machine?.model.modelCode ?? 'your machine'
 

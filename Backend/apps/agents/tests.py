@@ -233,6 +233,16 @@ class BuildAgentToolsTests(TestCase):
         self.assertNotIn("customer_id", fields)
         self.assertNotIn("machine_serial", fields)
         self.assertIn("quote_id", fields)
+        self.assertIn("target_machine_serial", fields)
+
+    def test_unscoped_tools_do_not_expose_target_serial(self) -> None:
+        built = mcp_tool(
+            "list_customer_machines", customer_id="demo", machine_serial="A3279"
+        )
+        fields = built.tool.args_schema.model_fields
+        self.assertNotIn("customer_id", fields)
+        self.assertNotIn("machine_serial", fields)
+        self.assertNotIn("target_machine_serial", fields)
 
     def test_unknown_tool_name_raises_at_build_time_not_silently(self) -> None:
         with self.assertRaises(ValueError):
@@ -248,6 +258,7 @@ class BuildAgentToolsTests(TestCase):
                 "get_quote_history",
                 "get_order_status",
                 "list_spare_parts",
+                "list_customer_machines",
             },
         )
 
@@ -262,17 +273,76 @@ class BuildAgentToolsTests(TestCase):
                 "list_alarms",
                 "create_ticket",
                 "list_maintenance_tickets",
+                "list_customer_machines",
             },
         )
         # 'shared' tools (get_machine_info, echo, ...) must not leak in even
         # though list_tools(agent=X) also returns them as a discovery aid.
         self.assertNotIn("get_machine_info", names)
 
+    def test_telemetry_agent_picks_up_query_telemetry_and_fleet_lookup(self) -> None:
+        from apps.agents.telemetry_agent import _build_tools
+
+        names = {t.tool.name for t in _build_tools("demo", "A3279")}
+        self.assertEqual(names, {"query_telemetry", "list_customer_machines"})
+
     def test_manuals_agent_owns_search_manual_only(self) -> None:
         from apps.agents.manuals_agent import _build_tools
 
         names = {t.tool.name for t in _build_tools("demo", "A3279")}
-        self.assertEqual(names, {"search_manual"})
+        self.assertEqual(names, {"search_manual", "list_customer_machines"})
+
+
+class McpToolTargetSerialTests(TestCase):
+    def setUp(self) -> None:
+        User = get_user_model()
+        self.user = User.objects.create_user(username="demo", password="demo")
+        self.machine = _make_machine(self.user)
+        Machine.objects.create(
+            machine_id="MCH-DEMO2",
+            company=self.user.company,
+            model=self.machine.model,
+            serial_number="17478",
+            delivery_date=date(2019, 7, 22),
+            plant_location="Line 2",
+            configuration_profile="Test config 2",
+            plc_family="SIEMENS-SIMATIC-S7",
+        )
+        other_company = Company.objects.create(
+            company_id="CMP-OTHER-AGENT",
+            company_name="Other Co",
+            country="France",
+            sector="Spirits",
+            city="Saintes",
+            currency="EUR",
+            locale="fr-FR",
+        )
+        Machine.objects.create(
+            machine_id="MCH-FOREIGN",
+            company=other_company,
+            model=self.machine.model,
+            serial_number="FOREIGN1",
+            delivery_date=date(2018, 1, 1),
+            plant_location="Other plant",
+            configuration_profile="Foreign config",
+            plc_family="SIEMENS-SIMATIC-S7",
+        )
+
+    def test_target_serial_of_owned_machine_is_used(self) -> None:
+        built = mcp_tool(
+            "get_machine_info", customer_id="demo", machine_serial="A3279"
+        )
+        result = built.tool.invoke({"target_machine_serial": "17478"})
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["data"]["machine"]["serialNumber"], "17478")
+
+    def test_target_serial_of_unowned_machine_is_forbidden(self) -> None:
+        built = mcp_tool(
+            "get_machine_info", customer_id="demo", machine_serial="A3279"
+        )
+        result = built.tool.invoke({"target_machine_serial": "FOREIGN1"})
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["code"], "FORBIDDEN")
 
 
 class StubOrchestratorTests(TestCase):

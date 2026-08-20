@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useClientTable, uniqueValues } from '../src/hooks/useClientTable'
+import { useActiveMachine } from '../src/hooks/useActiveMachine'
 import { useMaintenanceTickets } from '../src/hooks/useMaintenanceTickets'
 import type { MaintenanceTicket } from '../src/types/ticket'
 import './DataTable.css'
@@ -9,16 +11,22 @@ function statusClass(value: string): string {
 
 export default function MaintenanceTicketsPage() {
   const { tickets, loading, error } = useMaintenanceTickets()
+  const { focus } = useActiveMachine()
+  const [scopeAll, setScopeAll] = useState(false)
+  const scopedTickets =
+    scopeAll || !focus
+      ? tickets
+      : tickets.filter((ticket) => ticket.serialNumber === focus.serialNumber)
   const table = useClientTable<MaintenanceTicket>({
-    rows: tickets,
+    rows: scopedTickets,
     searchKeys: ['ticketId', 'serialNumber', 'plantLocation', 'ownerRole', 'alarmId'],
     defaultSortKey: 'createdDate',
     defaultSortDirection: 'desc',
   })
 
-  const ticketStatuses = uniqueValues(tickets, 'ticketStatus')
-  const priorities = uniqueValues(tickets, 'priority')
-  const ticketTypes = uniqueValues(tickets, 'ticketType')
+  const ticketStatuses = uniqueValues(scopedTickets, 'ticketStatus')
+  const priorities = uniqueValues(scopedTickets, 'priority')
+  const ticketTypes = uniqueValues(scopedTickets, 'ticketType')
 
   return (
     <div className="table-page">
@@ -26,8 +34,9 @@ export default function MaintenanceTicketsPage() {
         <div className="table-page__eyebrow">Service</div>
         <h1 className="table-page__title">Maintenance tickets</h1>
         <p className="table-page__subtitle">
-          Current service tickets for your machines. Filter and sort update the table
-          instantly.
+          {scopeAll || !focus
+            ? 'Current service tickets for your machines. Filter and sort update the table instantly.'
+            : `Tickets for serial ${focus.serialNumber}. Filter and sort update the table instantly.`}
         </p>
       </header>
 
@@ -93,12 +102,19 @@ export default function MaintenanceTicketsPage() {
               </select>
             </div>
             <div className="table-toolbar__actions">
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setScopeAll((value) => !value)}
+              >
+                {scopeAll ? 'This machine' : 'All company tickets'}
+              </button>
               <button type="button" className="btn btn--ghost" onClick={table.clearFilters}>
                 Clear
               </button>
             </div>
             <div className="table-toolbar__meta">
-              {table.filteredRows.length} of {tickets.length}
+              {table.filteredRows.length} of {scopedTickets.length}
             </div>
           </div>
 

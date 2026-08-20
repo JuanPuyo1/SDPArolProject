@@ -14,6 +14,7 @@ import {
   type AuthUser,
 } from '../api/auth'
 import { clearPersistedChat } from '../api/chatStorage'
+import { clearMachineFocus } from '../api/machineFocus'
 
 type AuthContextValue = {
   user: AuthUser | null
@@ -57,7 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const username = user?.username
     await logoutRequest()
     setUser(null)
-    if (username) clearPersistedChat(username)
+    if (username) {
+      clearPersistedChat(username)
+      clearMachineFocus(username)
+    }
   }, [user])
 
   const value = useMemo(

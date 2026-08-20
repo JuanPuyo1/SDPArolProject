@@ -24,6 +24,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool, StructuredTool
+from pydantic import Field as PydanticField
 from pydantic import create_model
 
 from apps.agents.ports import OrchestratorChunk
@@ -56,6 +57,30 @@ operational/telemetry data), and stop there for that part of the request. \
 Never reword a FORBIDDEN denial as "not found", "no data available", "I \
 couldn't find", or any other phrasing that reads as if nothing exists. \
 Never try a different tool to route around the denial."""
+
+_FOCUS_INSTRUCTION = """
+
+The operator's current (focus) machine is {model} serial {serial} at {plant}. \
+Unmarked questions ("this alarm", "the manual", "telemetry") refer to this \
+machine. They may also ask about other machines owned by the same company. \
+If they name another serial or plant line, call list_customer_machines first \
+and pass target_machine_serial on subsequent scoped tool calls. Never invent \
+a serial. Never query a machine that is not in that list. Omit \
+target_machine_serial when the user does not name another unit so tools use \
+the focus machine."""
+
+
+def focus_instruction(machine_envelope: dict[str, Any] | None) -> str:
+    """Build the shared focus-machine preamble from get_machine_info output."""
+    if not machine_envelope or machine_envelope.get('status') != 'ok':
+        return ''
+    data = machine_envelope.get('data') or {}
+    machine = data.get('machine') or {}
+    model = machine.get('model') or {}
+    model_code = model.get('modelCode') or model.get('model_code') or 'unknown model'
+    serial = machine.get('serialNumber') or machine.get('serial_number') or 'unknown'
+    plant = machine.get('plantLocation') or machine.get('plant_location') or 'unknown plant'
+    return _FOCUS_INSTRUCTION.format(model=model_code, serial=serial, plant=plant)
 
 
 class AgentTool(NamedTuple):
@@ -91,6 +116,8 @@ def mcp_tool(
     customer_id/machine_serial are injected here from the authenticated
     request and stripped out of the schema the LLM sees -- the model must
     never be trusted to supply tenant scope, only genuine tool arguments.
+    Scoped tools also expose optional target_machine_serial so the model can
+    query another owned unit without being able to change customer_id.
     """
     spec = registry.get_tool(name)
     if spec is None:
@@ -102,11 +129,26 @@ def mcp_tool(
         for field_name, field in spec.input_model.model_fields.items()
         if field_name not in scoped_fields
     }
+    if spec.requires_machine_scope:
+        public_fields['target_machine_serial'] = (
+            str | None,
+            PydanticField(
+                default=None,
+                description=(
+                    "Optional serial of another machine owned by the same customer. "
+                    "Omit to use the operator's current focus machine."
+                ),
+            ),
+        )
     args_schema = create_model(f'{spec.name}_Args', **public_fields)
     scope = {'customer_id': customer_id, 'machine_serial': machine_serial}
 
     def _call(**kwargs: Any) -> dict:
+        target = kwargs.pop('target_machine_serial', None)
         params = {**kwargs, **{field: scope[field] for field in scoped_fields}}
+        if 'machine_serial' in scoped_fields:
+            stripped = str(target).strip() if target else ''
+            params['machine_serial'] = stripped or scope['machine_serial']
         return registry.invoke(spec.name, params)
 
     tool = StructuredTool.from_function(
@@ -156,7 +198,29 @@ def build_agent_tools(
                     step_label=step_labels.get(meta['name']),
                 ),
             )
-    return tools
+    return with_fleet_lookup(
+        tools,
+        customer_id=customer_id,
+        machine_serial=machine_serial,
+    )
+
+
+def with_fleet_lookup(
+    tools: list[AgentTool],
+    *,
+    customer_id: str,
+    machine_serial: str,
+) -> list[AgentTool]:
+    """Append list_customer_machines so agents can answer fleet questions."""
+    return [
+        *tools,
+        mcp_tool(
+            'list_customer_machines',
+            customer_id=customer_id,
+            machine_serial=machine_serial,
+            step_label='Listing your company machines…',
+        ),
+    ]
 
 
 def load_machine_context(
@@ -188,6 +252,7 @@ def run_tool_calling_loop(
     history: list[BaseMessage] | None = None,
     new_messages_sink: list[BaseMessage] | None = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    machine_context: dict[str, Any] | None = None,
 ) -> Iterator[OrchestratorChunk]:
     """Stream Claude turns until it stops calling tools.
 
@@ -221,7 +286,9 @@ def run_tool_calling_loop(
     """
     tools_by_name = {t.tool.name: t for t in tools}
     messages: list[BaseMessage] = [
-        SystemMessage(content=system_prompt + _ACCESS_DENIAL_INSTRUCTION),
+        SystemMessage(
+            content=system_prompt + _ACCESS_DENIAL_INSTRUCTION + focus_instruction(machine_context),
+        ),
         *(history or []),
         HumanMessage(content=user_message),
     ]

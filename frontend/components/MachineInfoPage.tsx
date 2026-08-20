@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMachine, useMachines } from '../src/hooks/useMachine'
+import { useActiveMachine } from '../src/hooks/useActiveMachine'
+import { useMachine } from '../src/hooks/useMachine'
 import './MachineInfoPage.css'
 
 function formatDate(isoDate: string): string {
@@ -17,18 +17,10 @@ function displayValue(value: string | number | null | undefined, fallback = '—
 }
 
 export default function MachineInfoPage() {
-  const { machines, loading: listLoading, error: listError } = useMachines()
-  const [selectedSerial, setSelectedSerial] = useState<string | null>(null)
+  const { focus } = useActiveMachine()
+  const { machine, loading, error } = useMachine(focus?.serialNumber ?? null)
 
-  useEffect(() => {
-    if (machines.length > 0 && !selectedSerial) {
-      setSelectedSerial(machines[0].serialNumber)
-    }
-  }, [machines, selectedSerial])
-
-  const { machine, loading, error } = useMachine(selectedSerial)
-
-  if (listLoading || loading) {
+  if (loading) {
     return (
       <div className="machine-page">
         <p className="machine-page__status">Loading machine record…</p>
@@ -36,11 +28,11 @@ export default function MachineInfoPage() {
     )
   }
 
-  if (listError || error || !machine) {
+  if (error || !machine) {
     return (
       <div className="machine-page">
         <p className="machine-page__status machine-page__status--error">
-          {listError || error || 'No machine found for this account.'}
+          {error || 'No machine found for this account.'}
         </p>
       </div>
     )
@@ -51,23 +43,6 @@ export default function MachineInfoPage() {
 
   return (
     <div className="machine-page">
-      {machines.length > 1 && (
-        <div className="machine-picker">
-          <label htmlFor="machine-select">Fleet machine</label>
-          <select
-            id="machine-select"
-            value={machine.serialNumber}
-            onChange={(event) => setSelectedSerial(event.target.value)}
-          >
-            {machines.map((item) => (
-              <option key={item.machineId} value={item.serialNumber}>
-                {item.modelCode} · S/N {item.serialNumber} · {item.plantLocation}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
       <section className="machine-hero">
         <div className="machine-hero__eyebrow">{company.companyName}</div>
         <h1 className="machine-hero__title">{model.modelCode}</h1>

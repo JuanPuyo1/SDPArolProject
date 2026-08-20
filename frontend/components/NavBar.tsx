@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../src/hooks/useAuth'
+import { useActiveMachine } from '../src/hooks/useActiveMachine'
 import type { UserVisibility } from '../src/types/auth'
 import './NavBar.css'
 
@@ -23,6 +24,7 @@ const links: NavLinkItem[] = [
 
 export default function NavBar() {
   const { user, loading, logout } = useAuth()
+  const { focus } = useActiveMachine()
 
   async function handleLogout() {
     await logout()
@@ -54,6 +56,11 @@ export default function NavBar() {
         ))}
       </nav>
       <div className="nav-bar__auth">
+        {focus && (
+          <Link to="/select" className="nav-bar__machine" title="Change machine">
+            S/N {focus.serialNumber}
+          </Link>
+        )}
         {loading ? (
           <span className="nav-bar__auth-label">…</span>
         ) : user ? (

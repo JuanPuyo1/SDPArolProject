@@ -1,5 +1,5 @@
+from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
-from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET
 
 from apps.authentication.visibility import OPERATIONAL_VISIBLE, require_visibility
@@ -50,10 +50,26 @@ def machine_list(request: HttpRequest) -> JsonResponse:
 
 @require_GET
 def machine_detail(request: HttpRequest, serial_number: str) -> JsonResponse:
+    """Look up an owned machine by serial number or machineId."""
     if not request.user.is_authenticated:
         return _json_error('Authentication required.', status=401)
 
-    machine = get_object_or_404(_owned_queryset(request), serial_number=serial_number)
+    identifier = serial_number.strip()
+    qs = _owned_queryset(request)
+    machine = qs.filter(serial_number=identifier).first()
+    if machine is None:
+        machine = qs.filter(machine_id=identifier).first()
+    if machine is None:
+        exists = Machine.objects.filter(
+            Q(serial_number=identifier) | Q(machine_id=identifier),
+        ).exists()
+        if exists:
+            return _json_error(
+                'This machine is not assigned to your account.',
+                status=403,
+            )
+        return _json_error('Machine not found.', status=404)
+
     return JsonResponse({'machine': machine_to_dict(machine)})
 
 

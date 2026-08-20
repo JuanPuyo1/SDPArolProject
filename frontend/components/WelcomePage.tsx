@@ -1,20 +1,34 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../src/hooks/useAuth'
+import { useActiveMachine } from '../src/hooks/useActiveMachine'
+import { loadMachineFocus } from '../src/api/machineFocus'
 import './WelcomePage.css'
+
+function postLoginPath(from: string | undefined, hasFocus: boolean): string {
+  if (from?.startsWith('/m/')) return from
+  if (hasFocus) {
+    if (from && from !== '/' && from !== '/login' && from !== '/select' && from !== '/scan') {
+      return from
+    }
+    return '/machine'
+  }
+  return '/select'
+}
 
 export default function WelcomePage() {
   const { user, loading, login } = useAuth()
+  const { focus, ready } = useActiveMachine()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = (location.state as { from?: string } | null)?.from ?? '/machine'
+  const from = (location.state as { from?: string } | null)?.from
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  if (loading) {
+  if (loading || (user && !ready)) {
     return (
       <div className="welcome-page welcome-page--loading">
         <p className="welcome-page__loading">Loading…</p>
@@ -23,7 +37,7 @@ export default function WelcomePage() {
   }
 
   if (user) {
-    return <Navigate to={from} replace />
+    return <Navigate to={postLoginPath(from, Boolean(focus))} replace />
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -32,7 +46,8 @@ export default function WelcomePage() {
     setSubmitting(true)
     try {
       await login(username.trim(), password)
-      navigate(from, { replace: true })
+      const storedFocus = loadMachineFocus(username.trim())
+      navigate(postLoginPath(from, Boolean(storedFocus)), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {

@@ -1,0 +1,43 @@
+.scan-qr {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 32px 20px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.scan-qr__viewport {
+  width: 100%;
+  min-height: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0b2540;
+}
+
+.scan-qr__viewport video {
+  width: 100%;
+}
+
+.scan-qr__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scan-qr__form input {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.scan-qr__file {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}

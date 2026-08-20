@@ -99,6 +99,21 @@
   white-space: nowrap;
 }
 
+.nav-bar__machine {
+  color: var(--arol-teal);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(20, 163, 163, 0.45);
+  white-space: nowrap;
+}
+
+.nav-bar__machine:hover {
+  background: rgba(20, 163, 163, 0.15);
+}
+
 .nav-bar__profile:hover {
   background: rgba(255, 255, 255, 0.14);
 }
