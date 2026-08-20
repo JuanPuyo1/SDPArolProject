@@ -226,18 +226,25 @@ load_dotenv(BASE_DIR.parent / '.env')
 
 | Variable | Example / default | Purpose |
 |----------|-------------------|---------|
-| `ORCHESTRATOR_BACKEND` | `stub` | `stub` = local/CI simulator; `langgraph` = partner adapter |
-| `ANTHROPIC_API_KEY` | *(empty)* | Optional. If set, StubOrchestrator streams real Claude replies; if unset, canned SSE tokens |
-| `ANTHROPIC_MODEL` | `claude-haiku-4-5-20251001` | Model id used when the API key is present |
+| `ORCHESTRATOR_BACKEND` | `langgraph` | `stub` = local/CI simulator; `langgraph` = compiled multi-agent graph |
+| `LLM_PROVIDER` | `anthropic` | `anthropic` = Claude (via API key); `ollama` / `local` = Local model on host; `openai_compatible` = Local OpenAI endpoint |
+| `ANTHROPIC_API_KEY` | *(empty)* | Optional. Used when `LLM_PROVIDER=anthropic` |
+| `ANTHROPIC_MODEL` | `claude-haiku-4-5-20251001` | Anthropic model ID |
+| `LOCAL_LLM_MODEL` | `qwen2.5:3b` | Local model name (e.g. `qwen2.5:3b`, `llama3.2:3b`, `qwen2.5:7b`) |
+| `LOCAL_LLM_BASE_URL` | `http://localhost:11434` | Ollama or local model server endpoint |
+| `LOCAL_LLM_TEMPERATURE` | `0.0` | Sampling temperature for deterministic routing and tool calls |
 | `QDRANT_URL` | `:memory:` | Qdrant DB server URL (or `:memory:` for local in-memory vector DB) |
 | `QDRANT_API_KEY` | *(empty)* | Optional API key for cloud or authenticated Qdrant cluster |
 
 Template (`.env.example`):
 
 ```env
-ORCHESTRATOR_BACKEND=stub
+ORCHESTRATOR_BACKEND=langgraph
+LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-haiku-4-5-20251001
+LOCAL_LLM_MODEL=qwen2.5:3b
+LOCAL_LLM_BASE_URL=http://localhost:11434
 QDRANT_URL=:memory:
 ```
 

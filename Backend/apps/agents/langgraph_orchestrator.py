@@ -6,7 +6,6 @@ from collections.abc import Iterator
 from enum import Enum
 from typing import Annotated, Literal, TypedDict
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.config import get_stream_writer
@@ -14,7 +13,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
 
-from apps.agents.agent_kit import DEFAULT_MODEL
+from apps.agents.llm_factory import get_router_llm
 from apps.agents.manuals_agent import ManualsAgent
 from apps.agents.orders_business_agent import OrdersBusinessAgent
 from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
@@ -71,9 +70,9 @@ platform."""
 
 
 def build_router_llm():
-    """Real Claude client bound to the routing decision schema. Callers may
-    inject a fake model instead (e.g. in tests) via classify_intent(llm=...)."""
-    return ChatAnthropic(model=DEFAULT_MODEL).with_structured_output(_RouteDecision)
+    """Structured-output LLM router (Claude or Local Model depending on LLM_PROVIDER).
+    Callers may inject a fake model instead (e.g. in tests) via classify_intent(llm=...)."""
+    return get_router_llm(_RouteDecision)
 
 
 def classify_intent(message: str, llm=None) -> AgentIntent:
@@ -81,7 +80,16 @@ def classify_intent(message: str, llm=None) -> AgentIntent:
     decision = router.invoke(
         [SystemMessage(content=_ROUTER_SYSTEM_PROMPT), HumanMessage(content=message)],
     )
-    return AgentIntent(decision.agent)
+    if isinstance(decision, dict):
+        agent_val = decision.get("agent")
+    elif hasattr(decision, "agent"):
+        agent_val = decision.agent
+    else:
+        agent_val = str(decision)
+    try:
+        return AgentIntent(agent_val)
+    except ValueError:
+        return AgentIntent.TROUBLESHOOTING_SERVICE
 
 
 class ChatState(TypedDict):

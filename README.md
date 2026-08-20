@@ -100,11 +100,26 @@ cp .env.example .env
 
 Default `.env` configuration:
 ```env
-ORCHESTRATOR_BACKEND=stub
+ORCHESTRATOR_BACKEND=langgraph
+
+# Provider: 'anthropic' (default) | 'ollama' | 'local' | 'openai_compatible'
+LLM_PROVIDER=anthropic
+
+# Anthropic Claude (when LLM_PROVIDER=anthropic)
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-haiku-4-5-20251001
+
+# Local Ollama / Open Models (when LLM_PROVIDER=ollama or local)
+LOCAL_LLM_MODEL=qwen2.5:3b
+LOCAL_LLM_BASE_URL=http://localhost:11434
+
 QDRANT_URL=:memory:
 ```
+
+> **Running with Local Models (Ollama):**
+> 1. Ensure Ollama is running (`ollama serve`).
+> 2. Pull the recommended tool-calling model: `ollama pull qwen2.5:3b` (or `llama3.2:3b`).
+> 3. Set `LLM_PROVIDER=ollama` in your `.env`. All orchestration routing and agent tool loops will execute locally without external API keys.
 
 ### 2. Backend Setup
 

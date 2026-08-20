@@ -665,3 +665,75 @@ class TelemetryAgentTests(TestCase):
         token_chunks = [c for c in chunks if c.type == "token"]
         full_text = "".join(c.content for c in token_chunks)
         self.assertIn("24°C", full_text)
+
+
+class LLMFactoryTests(TestCase):
+    """Verify dynamic provider resolution between Anthropic, Ollama, and OpenAI-compatible endpoints."""
+
+    def test_active_provider_and_model_resolution(self) -> None:
+        from apps.agents.llm_factory import (
+            get_active_model_name,
+            get_active_provider,
+            get_base_chat_model,
+        )
+        from langchain_anthropic import ChatAnthropic
+        from langchain_ollama import ChatOllama
+        from langchain_openai import ChatOpenAI
+
+        # 1. Anthropic provider (default)
+        with override_settings(
+            LLM_PROVIDER="anthropic",
+            ANTHROPIC_MODEL="claude-3-haiku",
+            ANTHROPIC_API_KEY="test-key",
+        ):
+            self.assertEqual(get_active_provider(), "anthropic")
+            self.assertEqual(get_active_model_name(), "claude-3-haiku")
+            llm = get_base_chat_model()
+            self.assertIsInstance(llm, ChatAnthropic)
+            self.assertEqual(llm.model, "claude-3-haiku")
+
+        # 2. Ollama / Local provider
+        with override_settings(
+            LLM_PROVIDER="ollama",
+            LOCAL_LLM_MODEL="qwen2.5:3b",
+            LOCAL_LLM_BASE_URL="http://localhost:11434",
+            LOCAL_LLM_TEMPERATURE=0.0,
+        ):
+            self.assertEqual(get_active_provider(), "ollama")
+            self.assertEqual(get_active_model_name(), "qwen2.5:3b")
+            llm = get_base_chat_model()
+            self.assertIsInstance(llm, ChatOllama)
+            self.assertEqual(llm.model, "qwen2.5:3b")
+            self.assertEqual(llm.base_url, "http://localhost:11434")
+
+        # 3. Local alias provider
+        with override_settings(
+            LLM_PROVIDER="local",
+            LOCAL_LLM_MODEL="llama3.2:3b",
+            LOCAL_LLM_BASE_URL="http://localhost:11434",
+        ):
+            self.assertEqual(get_active_provider(), "local")
+            self.assertEqual(get_active_model_name(), "llama3.2:3b")
+            llm = get_base_chat_model()
+            self.assertIsInstance(llm, ChatOllama)
+            self.assertEqual(llm.model, "llama3.2:3b")
+
+        # 4. OpenAI compatible provider
+        with override_settings(
+            LLM_PROVIDER="openai_compatible",
+            LOCAL_LLM_MODEL="custom-local-model",
+            LOCAL_LLM_BASE_URL="http://localhost:8000/v1",
+        ):
+            self.assertEqual(get_active_provider(), "openai_compatible")
+            self.assertEqual(get_active_model_name(), "custom-local-model")
+            llm = get_base_chat_model()
+            self.assertIsInstance(llm, ChatOpenAI)
+            self.assertEqual(llm.model_name, "custom-local-model")
+
+    def test_invalid_provider_raises_value_error(self) -> None:
+        from apps.agents.llm_factory import get_base_chat_model
+
+        with override_settings(LLM_PROVIDER="unsupported_provider"):
+            with self.assertRaises(ValueError) as ctx:
+                get_base_chat_model()
+            self.assertIn("Unsupported LLM_PROVIDER", str(ctx.exception))

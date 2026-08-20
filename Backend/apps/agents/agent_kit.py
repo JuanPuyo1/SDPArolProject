@@ -26,6 +26,7 @@ from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import create_model
 
+from apps.agents.llm_factory import get_active_model_name, get_tool_calling_llm
 from apps.agents.ports import OrchestratorChunk
 from apps.mcp_server import registry
 
@@ -34,7 +35,7 @@ from apps.mcp_server import registry
 # supply tenant scope (see mcp_tool()'s docstring).
 _SCOPE_FIELDS = ('customer_id', 'machine_serial')
 
-DEFAULT_MODEL = getattr(settings, 'ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
+DEFAULT_MODEL = get_active_model_name()
 DEFAULT_MAX_ITERATIONS = 8
 
 # Appended to every agent's system prompt (see run_tool_calling_loop) so the
@@ -65,10 +66,11 @@ class AgentTool(NamedTuple):
     step_label: str
 
 
-def build_llm(tools: list[BaseTool], *, model: str = DEFAULT_MODEL) -> Runnable:
-    """Real Claude client, tool-bound. Callers may inject a fake model instead
-    (e.g. in tests) by passing it directly to run_tool_calling_loop()."""
-    return ChatAnthropic(model=model).bind_tools(tools)
+def build_llm(tools: list[BaseTool], *, model: str | None = None) -> Runnable:
+    """Tool-bound LLM client (Claude or Local Model depending on LLM_PROVIDER).
+    Callers may inject a fake model instead (e.g. in tests) by passing it directly
+    to run_tool_calling_loop()."""
+    return get_tool_calling_llm(tools, model=model)
 
 
 def mcp_tool(
@@ -251,13 +253,17 @@ def run_tool_calling_loop(
             else:
                 yield OrchestratorChunk(type='step', content=entry.step_label)
                 try:
-                    result = entry.tool.invoke(call['args'])
+                    args = call.get('args', {})
+                    if isinstance(args, str):
+                        args = json.loads(args) if args.strip() else {}
+                    result = entry.tool.invoke(args)
                 except Exception as exc:  # noqa: BLE001
                     # Reported back to the model as a tool error, not raised.
                     result = {'status': 'error', 'message': f'{call["name"]} failed: {exc}'}
             yield OrchestratorChunk(type='tool', tool=call['name'], data=result)
+            tool_call_id = call.get('id') or f"call_{len(messages)}"
             messages.append(
-                ToolMessage(content=json.dumps(result, default=str), tool_call_id=call['id']),
+                ToolMessage(content=json.dumps(result, default=str), tool_call_id=tool_call_id),
             )
 
     if new_messages_sink is not None:

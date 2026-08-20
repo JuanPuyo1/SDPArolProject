@@ -154,9 +154,18 @@ MCP_HTTP_INVOKE_ENABLED = DEBUG
 # Orchestrator backend: stub (local/CI) | langgraph (partner graph).
 ORCHESTRATOR_BACKEND = os.getenv('ORCHESTRATOR_BACKEND', 'stub')
 
-# Stub orchestrator LLM (optional — canned fallback when unset).
+# LLM Provider configuration: 'anthropic' (default) | 'ollama' | 'local' | 'openai_compatible'
+LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'anthropic').strip().lower()
+
+# Anthropic Claude configuration (used when LLM_PROVIDER == 'anthropic')
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 ANTHROPIC_MODEL = os.getenv('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
+
+# Local / Ollama / OpenAI-compatible configuration (used when LLM_PROVIDER in ('ollama', 'local', 'openai_compatible'))
+LOCAL_LLM_MODEL = os.getenv('LOCAL_LLM_MODEL', 'qwen2.5:3b')
+LOCAL_LLM_BASE_URL = os.getenv('LOCAL_LLM_BASE_URL', 'http://localhost:11434')
+LOCAL_LLM_TEMPERATURE = float(os.getenv('LOCAL_LLM_TEMPERATURE', '0.0'))
+LOCAL_LLM_TIMEOUT = float(os.getenv('LOCAL_LLM_TIMEOUT', '60.0'))
 
 # Qdrant vector store (RAG over manuals).
 # QDRANT_URL/QDRANT_API_KEY are unset by default → rag_engine falls back to a
