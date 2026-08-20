@@ -31,12 +31,24 @@ SECRET_KEY = 'django-insecure-6in+az(r2oq#i&u$p@)5)$@-78txw^u!r1ftq#3)s3mf^42689
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+_DEFAULT_ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+_EXTRA_ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(',')
+    if host.strip()
+]
+ALLOWED_HOSTS = _DEFAULT_ALLOWED_HOSTS + _EXTRA_ALLOWED_HOSTS
 
-CSRF_TRUSTED_ORIGINS = [
+_DEFAULT_CSRF_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
 ]
+_EXTRA_CSRF_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+CSRF_TRUSTED_ORIGINS = _DEFAULT_CSRF_ORIGINS + _EXTRA_CSRF_ORIGINS
 
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
