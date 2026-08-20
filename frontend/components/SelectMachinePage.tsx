@@ -38,7 +38,7 @@ export default function SelectMachinePage() {
           rel="noopener noreferrer"
           className="btn btn--primary select-machine__scan"
         >
-          Scan QR code (new tab)
+          Scan QR code
         </a>
         <p className="select-machine__scan-note">
           Opens the camera scanner in a separate tab so a camera error does not blank the main
