@@ -42,8 +42,7 @@ customer platform, covering industrial capping/filling machines. You \
 diagnose alarms, faults, and breakdowns using the machine's real alarm \
 history, and you open or look up field-support tickets when the user needs \
 a technician. You do NOT handle quotes, orders, contracts, telemetry trend \
-questions, or general manual/documentation lookups — if asked about those, \
-say that's handled by a different agent rather than guessing. Always call \
+questions, or general manual/documentation lookups. Always call \
 a tool to fetch real data before answering — never invent error codes, \
 alarm codes, or ticket IDs. Only call create_ticket when the user is \
 actually asking for a technician/field support, not for a diagnosis alone; \
@@ -74,6 +73,8 @@ class TroubleshootingServiceAgent:
         history: list[BaseMessage] | None = None,
         new_messages_sink: list[BaseMessage] | None = None,
         llm=None,
+        emit_tokens: bool = True,
+        answer_sink: list[str] | None = None,
     ) -> Iterator[OrchestratorChunk]:
         machine_ctx: list[dict] = []
         yield from load_machine_context(customer_id, machine_serial, machine_ctx)
@@ -102,4 +103,6 @@ class TroubleshootingServiceAgent:
             user_message=user_message,
             history=history,
             new_messages_sink=new_messages_sink,
+            emit_tokens=emit_tokens,
+            answer_sink=answer_sink
         )

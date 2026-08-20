@@ -57,6 +57,15 @@ Never reword a FORBIDDEN denial as "not found", "no data available", "I \
 couldn't find", or any other phrasing that reads as if nothing exists. \
 Never try a different tool to route around the denial."""
 
+_COLLABORATION_INSTRUCTION = """
+
+You are one of several specialists answering in parallel. Another agent may \
+already be handling other parts of this request. Answer your part fully \
+using your tools and say nothing about which agent handles what -- a \
+synthesizer merges the replies. If your part is entirely outside your tools, \
+return one short sentence saying so, and never refuse the whole request \
+because one sub-part is out of domain."""
+
 
 class AgentTool(NamedTuple):
     """A LangChain tool paired with the `step` chunk label shown while it runs."""
@@ -188,6 +197,8 @@ def run_tool_calling_loop(
     history: list[BaseMessage] | None = None,
     new_messages_sink: list[BaseMessage] | None = None,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    emit_tokens: bool = True,
+    answer_sink: list[str] | None = None,
 ) -> Iterator[OrchestratorChunk]:
     """Stream Claude turns until it stops calling tools.
 
@@ -221,7 +232,7 @@ def run_tool_calling_loop(
     """
     tools_by_name = {t.tool.name: t for t in tools}
     messages: list[BaseMessage] = [
-        SystemMessage(content=system_prompt + _ACCESS_DENIAL_INSTRUCTION),
+        SystemMessage(content=system_prompt + _ACCESS_DENIAL_INSTRUCTION + _COLLABORATION_INSTRUCTION),
         *(history or []),
         HumanMessage(content=user_message),
     ]
@@ -238,10 +249,13 @@ def run_tool_calling_loop(
         messages.append(accumulated)
 
         if not accumulated.tool_calls:
-            for piece in buffered_text:
-                yield OrchestratorChunk(type='token', content=piece)
-            if new_messages_sink is not None:
-                new_messages_sink.extend(messages[turn_start:])
+            if emit_tokens:
+                for piece in buffered_text:
+                    yield OrchestratorChunk(type='token', content=piece)
+            if answer_sink is not None:
+                answer_sink.append(''.join(buffered_text))
+            if new_messages_sink is not None:  # <-- restore
+                new_messages_sink.extend(messages[turn_start:])  # <-- restore
             return
 
         for call in accumulated.tool_calls:
