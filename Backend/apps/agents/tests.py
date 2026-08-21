@@ -20,7 +20,7 @@ from apps.agents.agent_kit import AgentTool, mcp_tool, run_tool_calling_loop
 from apps.agents.langgraph_orchestrator import (
     AgentIntent,
     LangGraphOrchestrator,
-    classify_intent,
+    plan_tasks,
 )
 from apps.agents.stub_orchestrator import StubOrchestrator
 from apps.agents.telemetry_agent import TelemetryAgent
@@ -66,17 +66,20 @@ class _ScriptedLLM:
 
 
 class _FakeRouterLLM:
-    """Router stand-in: classify_intent() only ever calls .invoke(messages)
-    and reads the returned object's `.agent` attribute -- matches the shape
-    of the real _RouteDecision structured-output result without hitting
-    Claude, so routing tests stay deterministic and don't test the model's
-    actual judgement (see module docstring)."""
+    """Router stand-in: plan_tasks() only ever calls .invoke(messages) and
+    reads the returned object's `.tasks` list -- matches the shape of the
+    real _RouteDecision structured-output result without hitting Claude, so
+    routing tests stay deterministic and don't test the model's actual
+    judgement (see module docstring)."""
 
     def __init__(self, agent: str) -> None:
         self._agent = agent
 
-    def invoke(self, _messages):
-        return SimpleNamespace(agent=self._agent)
+    def invoke(self, messages):
+        subtask = getattr(messages[-1], "content", "") if messages else ""
+        return SimpleNamespace(
+            tasks=[SimpleNamespace(agent=self._agent, subtask=subtask)]
+        )
 
 
 def _make_machine(owner) -> Machine:
@@ -329,17 +332,13 @@ class McpToolTargetSerialTests(TestCase):
         )
 
     def test_target_serial_of_owned_machine_is_used(self) -> None:
-        built = mcp_tool(
-            "get_machine_info", customer_id="demo", machine_serial="A3279"
-        )
+        built = mcp_tool("get_machine_info", customer_id="demo", machine_serial="A3279")
         result = built.tool.invoke({"target_machine_serial": "17478"})
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["data"]["machine"]["serialNumber"], "17478")
 
     def test_target_serial_of_unowned_machine_is_forbidden(self) -> None:
-        built = mcp_tool(
-            "get_machine_info", customer_id="demo", machine_serial="A3279"
-        )
+        built = mcp_tool("get_machine_info", customer_id="demo", machine_serial="A3279")
         result = built.tool.invoke({"target_machine_serial": "FOREIGN1"})
         self.assertEqual(result["status"], "error")
         self.assertEqual(result["code"], "FORBIDDEN")
@@ -457,12 +456,12 @@ class LangGraphOrchestratorTests(TransactionTestCase):
         self.user = User.objects.create_user(username="demo", password="demo")
         _make_machine(self.user)
 
-    def test_classify_intent_maps_router_decision_to_agent_intent(self) -> None:
-        """classify_intent() is now a thin wrapper around an LLM structured-
-        output call (see langgraph_orchestrator.build_router_llm) rather than
-        a keyword regex, so this only verifies the plumbing -- that the
-        message reaches the router and its `.agent` decision maps onto the
-        right AgentIntent -- not the model's actual judgement."""
+    def test_plan_tasks_maps_router_decision_to_agent_intent(self) -> None:
+        """plan_tasks() is a thin wrapper around an LLM structured-output
+        call (see langgraph_orchestrator.build_router_llm) rather than a
+        keyword regex, so this only verifies the plumbing -- that the
+        message reaches the router and its decision maps onto the right
+        AgentIntent -- not the model's actual judgement."""
         seen_messages: list[list] = []
 
         class _RecordingRouterLLM(_FakeRouterLLM):
@@ -471,25 +470,25 @@ class LangGraphOrchestratorTests(TransactionTestCase):
                 return super().invoke(messages)
 
         self.assertEqual(
-            classify_intent(
+            plan_tasks(
                 "Has our quote been revised?",
                 llm=_RecordingRouterLLM("orders_business"),
-            ),
-            AgentIntent.ORDERS_BUSINESS,
+            )[0]["agent"],
+            AgentIntent.ORDERS_BUSINESS.value,
         )
         self.assertEqual(
-            classify_intent(
+            plan_tasks(
                 "Alarm E042 star-wheel jam",
                 llm=_RecordingRouterLLM("troubleshooting_service"),
-            ),
-            AgentIntent.TROUBLESHOOTING_SERVICE,
+            )[0]["agent"],
+            AgentIntent.TROUBLESHOOTING_SERVICE.value,
         )
         self.assertEqual(
-            classify_intent(
+            plan_tasks(
                 "How do I adjust torque on the capping head?",
                 llm=_RecordingRouterLLM("manuals"),
-            ),
-            AgentIntent.MANUALS,
+            )[0]["agent"],
+            AgentIntent.MANUALS.value,
         )
 
         last_call_texts = [getattr(m, "content", "") for m in seen_messages[-1]]
@@ -735,3 +734,50 @@ class TelemetryAgentTests(TestCase):
         token_chunks = [c for c in chunks if c.type == "token"]
         full_text = "".join(c.content for c in token_chunks)
         self.assertIn("24°C", full_text)
+
+
+class LLMFactoryTests(TestCase):
+    """Verify dynamic provider resolution between Anthropic, Ollama, and OpenAI-compatible endpoints."""
+
+    def test_active_provider_and_model_resolution(self) -> None:
+        from apps.agents.llm_factory import (
+            get_active_model_name,
+            get_active_provider,
+            get_base_chat_model,
+        )
+        from langchain_anthropic import ChatAnthropic
+        from langchain_ollama import ChatOllama
+
+        # 1. Anthropic provider (default)
+        with override_settings(
+            LLM_PROVIDER="anthropic",
+            ANTHROPIC_MODEL="claude-3-haiku",
+            ANTHROPIC_API_KEY="test-key",
+        ):
+            self.assertEqual(get_active_provider(), "anthropic")
+            self.assertEqual(get_active_model_name(), "claude-3-haiku")
+            llm = get_base_chat_model()
+            self.assertIsInstance(llm, ChatAnthropic)
+            self.assertEqual(llm.model, "claude-3-haiku")
+
+        # 2. Ollama / Local provider
+        with override_settings(
+            LLM_PROVIDER="ollama",
+            LOCAL_LLM_MODEL="qwen2.5:3b",
+            LOCAL_LLM_BASE_URL="http://localhost:11434",
+            LOCAL_LLM_TEMPERATURE=0.0,
+        ):
+            self.assertEqual(get_active_provider(), "ollama")
+            self.assertEqual(get_active_model_name(), "qwen2.5:3b")
+            llm = get_base_chat_model()
+            self.assertIsInstance(llm, ChatOllama)
+            self.assertEqual(llm.model, "qwen2.5:3b")
+            self.assertEqual(llm.base_url, "http://localhost:11434")
+
+    def test_invalid_provider_raises_value_error(self) -> None:
+        from apps.agents.llm_factory import get_base_chat_model
+
+        with override_settings(LLM_PROVIDER="unsupported_provider"):
+            with self.assertRaises(ValueError) as ctx:
+                get_base_chat_model()
+            self.assertIn("Unsupported LLM_PROVIDER", str(ctx.exception))

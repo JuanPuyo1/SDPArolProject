@@ -21,11 +21,17 @@ from typing import Any, NamedTuple
 from django.conf import settings
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import Field as PydanticField
 from pydantic import create_model
+from apps.agents.llm_factory import get_active_model_name, get_tool_calling_llm
 
 from apps.agents.ports import OrchestratorChunk
 from apps.mcp_server import registry
@@ -33,9 +39,9 @@ from apps.mcp_server import registry
 # Fields injected by mcp_tool() from the authenticated request rather than
 # exposed as LLM-fillable tool args -- the model must never be trusted to
 # supply tenant scope (see mcp_tool()'s docstring).
-_SCOPE_FIELDS = ('customer_id', 'machine_serial')
+_SCOPE_FIELDS = ("customer_id", "machine_serial")
 
-DEFAULT_MODEL = getattr(settings, 'ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
+DEFAULT_MODEL = get_active_model_name()
 DEFAULT_MAX_ITERATIONS = 8
 
 # Appended to every agent's system prompt (see run_tool_calling_loop) so the
@@ -74,15 +80,18 @@ platform's machine selector to ask about a different unit."""
 
 def focus_instruction(machine_envelope: dict[str, Any] | None) -> str:
     """Build the shared focus-machine preamble from get_machine_info output."""
-    if not machine_envelope or machine_envelope.get('status') != 'ok':
-        return ''
-    data = machine_envelope.get('data') or {}
-    machine = data.get('machine') or {}
-    model = machine.get('model') or {}
-    model_code = model.get('modelCode') or model.get('model_code') or 'unknown model'
-    serial = machine.get('serialNumber') or machine.get('serial_number') or 'unknown'
-    plant = machine.get('plantLocation') or machine.get('plant_location') or 'unknown plant'
+    if not machine_envelope or machine_envelope.get("status") != "ok":
+        return ""
+    data = machine_envelope.get("data") or {}
+    machine = data.get("machine") or {}
+    model = machine.get("model") or {}
+    model_code = model.get("modelCode") or model.get("model_code") or "unknown model"
+    serial = machine.get("serialNumber") or machine.get("serial_number") or "unknown"
+    plant = (
+        machine.get("plantLocation") or machine.get("plant_location") or "unknown plant"
+    )
     return _FOCUS_INSTRUCTION.format(model=model_code, serial=serial, plant=plant)
+
 
 _COLLABORATION_INSTRUCTION = """
 
@@ -104,7 +113,7 @@ class AgentTool(NamedTuple):
 def build_llm(tools: list[BaseTool], *, model: str = DEFAULT_MODEL) -> Runnable:
     """Real Claude client, tool-bound. Callers may inject a fake model instead
     (e.g. in tests) by passing it directly to run_tool_calling_loop()."""
-    return ChatAnthropic(model=model).bind_tools(tools)
+    return get_tool_calling_llm(model=model, tools=tools)
 
 
 def mcp_tool(
@@ -132,7 +141,7 @@ def mcp_tool(
     """
     spec = registry.get_tool(name)
     if spec is None:
-        raise ValueError(f'Unknown MCP tool: {name!r}')
+        raise ValueError(f"Unknown MCP tool: {name!r}")
 
     scoped_fields = set(_SCOPE_FIELDS) & set(spec.input_model.model_fields)
     public_fields = {
@@ -151,8 +160,8 @@ def mcp_tool(
     #             ),
     #         ),
     #     )
-    args_schema = create_model(f'{spec.name}_Args', **public_fields)
-    scope = {'customer_id': customer_id, 'machine_serial': machine_serial}
+    args_schema = create_model(f"{spec.name}_Args", **public_fields)
+    scope = {"customer_id": customer_id, "machine_serial": machine_serial}
 
     def _call(**kwargs: Any) -> dict:
         params = {**kwargs, **{field: scope[field] for field in scoped_fields}}
@@ -172,7 +181,7 @@ def mcp_tool(
         description=spec.description,
         args_schema=args_schema,
     )
-    return AgentTool(tool, step_label or f'Calling {spec.name}…')
+    return AgentTool(tool, step_label or f"Calling {spec.name}…")
 
 
 def build_agent_tools(
@@ -202,15 +211,15 @@ def build_agent_tools(
     tools: list[AgentTool] = []
     for tag in tags:
         for meta in registry.list_tools(agent=tag):
-            if meta['agent'] != tag or meta['name'] in seen:
+            if meta["agent"] != tag or meta["name"] in seen:
                 continue
-            seen.add(meta['name'])
+            seen.add(meta["name"])
             tools.append(
                 mcp_tool(
-                    meta['name'],
+                    meta["name"],
                     customer_id=customer_id,
                     machine_serial=machine_serial,
-                    step_label=step_labels.get(meta['name']),
+                    step_label=step_labels.get(meta["name"]),
                 ),
             )
     return tools
@@ -239,6 +248,7 @@ def build_agent_tools(
     #         ),
     #     ]
 
+
 def load_machine_context(
     customer_id: str,
     machine_serial: str,
@@ -250,12 +260,12 @@ def load_machine_context(
     pattern every MCP-calling agent already uses) so the caller can inspect
     `sink[0]['status']` after draining this generator.
     """
-    yield OrchestratorChunk(type='step', content='Loading machine context…')
+    yield OrchestratorChunk(type="step", content="Loading machine context…")
     result = registry.invoke(
-        'get_machine_info',
-        {'customer_id': customer_id, 'machine_serial': machine_serial},
+        "get_machine_info",
+        {"customer_id": customer_id, "machine_serial": machine_serial},
     )
-    yield OrchestratorChunk(type='tool', tool='get_machine_info', data=result)
+    yield OrchestratorChunk(type="tool", tool="get_machine_info", data=result)
     sink.append(result)
 
 
@@ -305,7 +315,10 @@ def run_tool_calling_loop(
     tools_by_name = {t.tool.name: t for t in tools}
     messages: list[BaseMessage] = [
         SystemMessage(
-            content=system_prompt + _ACCESS_DENIAL_INSTRUCTION + _COLLABORATION_INSTRUCTION + focus_instruction(machine_context),
+            content=system_prompt
+            + _ACCESS_DENIAL_INSTRUCTION
+            + _COLLABORATION_INSTRUCTION
+            + focus_instruction(machine_context),
         ),
         *(history or []),
         HumanMessage(content=user_message),
@@ -325,32 +338,37 @@ def run_tool_calling_loop(
         if not accumulated.tool_calls:
             if emit_tokens:
                 for piece in buffered_text:
-                    yield OrchestratorChunk(type='token', content=piece)
+                    yield OrchestratorChunk(type="token", content=piece)
             if answer_sink is not None:
-                answer_sink.append(''.join(buffered_text))
+                answer_sink.append("".join(buffered_text))
             if new_messages_sink is not None:  # <-- restore
                 new_messages_sink.extend(messages[turn_start:])  # <-- restore
             return
 
         for call in accumulated.tool_calls:
-            entry = tools_by_name.get(call['name'])
+            entry = tools_by_name.get(call["name"])
             if entry is None:
-                result = {'status': 'error', 'message': f"Unknown tool: {call['name']}"}
+                result = {"status": "error", "message": f"Unknown tool: {call['name']}"}
             else:
-                yield OrchestratorChunk(type='step', content=entry.step_label)
+                yield OrchestratorChunk(type="step", content=entry.step_label)
                 try:
-                    result = entry.tool.invoke(call['args'])
+                    result = entry.tool.invoke(call["args"])
                 except Exception as exc:  # noqa: BLE001
                     # Reported back to the model as a tool error, not raised.
-                    result = {'status': 'error', 'message': f'{call["name"]} failed: {exc}'}
-            yield OrchestratorChunk(type='tool', tool=call['name'], data=result)
+                    result = {
+                        "status": "error",
+                        "message": f'{call["name"]} failed: {exc}',
+                    }
+            yield OrchestratorChunk(type="tool", tool=call["name"], data=result)
             messages.append(
-                ToolMessage(content=json.dumps(result, default=str), tool_call_id=call['id']),
+                ToolMessage(
+                    content=json.dumps(result, default=str), tool_call_id=call["id"]
+                ),
             )
 
     if new_messages_sink is not None:
         new_messages_sink.extend(messages[turn_start:])
     yield OrchestratorChunk(
-        type='error',
-        message=f'Gave up after {max_iterations} tool-calling round-trips without a final answer.',
+        type="error",
+        message=f"Gave up after {max_iterations} tool-calling round-trips without a final answer.",
     )

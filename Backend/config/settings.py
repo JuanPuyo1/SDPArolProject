@@ -19,88 +19,88 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Repo-root .env (SDPProject/.env) — shared with frontend tooling when present.
-load_dotenv(BASE_DIR.parent / '.env')
+load_dotenv(BASE_DIR.parent / ".env")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-6in+az(r2oq#i&u$p@)5)$@-78txw^u!r1ftq#3)s3mf^42689'
+SECRET_KEY = "django-insecure-6in+az(r2oq#i&u$p@)5)$@-78txw^u!r1ftq#3)s3mf^42689"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-_DEFAULT_ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+_DEFAULT_ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 _EXTRA_ALLOWED_HOSTS = [
     host.strip()
-    for host in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(',')
+    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",")
     if host.strip()
 ]
 ALLOWED_HOSTS = _DEFAULT_ALLOWED_HOSTS + _EXTRA_ALLOWED_HOSTS
 
 _DEFAULT_CSRF_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 _EXTRA_CSRF_ORIGINS = [
     origin.strip()
-    for origin in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
+    for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
     if origin.strip()
 ]
 CSRF_TRUSTED_ORIGINS = _DEFAULT_CSRF_ORIGINS + _EXTRA_CSRF_ORIGINS
 
-SESSION_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'apps.core',
-    'apps.authentication',
-    'apps.machines',
-    'apps.quotes',
-    'apps.mcp_server',
-    'apps.agents',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "apps.core",
+    "apps.authentication",
+    "apps.machines",
+    "apps.quotes",
+    "apps.mcp_server",
+    "apps.agents",
 ]
 
-AUTH_USER_MODEL = 'authentication.User'
+AUTH_USER_MODEL = "authentication.User"
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'config.urls'
+ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'config.wsgi.application'
+WSGI_APPLICATION = "config.wsgi.application"
 
 
 # Database
@@ -108,13 +108,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Configure via repo-root .env (POSTGRES_*). Requires a running PostgreSQL instance.
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('POSTGRES_DB', 'arol'),
-        'USER': os.getenv('POSTGRES_USER', 'arol'),
-        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'arol'),
-        'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
-        'PORT': os.getenv('POSTGRES_PORT', '5432'),
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("POSTGRES_DB", "arol"),
+        "USER": os.getenv("POSTGRES_USER", "arol"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "arol"),
+        "HOST": os.getenv("POSTGRES_HOST", "localhost"),
+        "PORT": os.getenv("POSTGRES_PORT", "5432"),
     }
 }
 
@@ -124,16 +124,16 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -141,9 +141,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -153,10 +153,10 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = "static/"
 
 STATICFILES_DIRS = [
-    BASE_DIR / 'static',
+    BASE_DIR / "static",
 ]
 
 # MCP debug HTTP invoke (POST /api/mcp/tools/<name>/invoke/).
@@ -164,19 +164,30 @@ STATICFILES_DIRS = [
 MCP_HTTP_INVOKE_ENABLED = DEBUG
 
 # Orchestrator backend: stub (local/CI) | langgraph (partner graph).
-ORCHESTRATOR_BACKEND = os.getenv('ORCHESTRATOR_BACKEND', 'stub')
+ORCHESTRATOR_BACKEND = os.getenv("ORCHESTRATOR_BACKEND", "stub")
+
+# LLM Provider configuration: 'anthropic' (default) | 'ollama' | 'local' | 'openai_compatible'
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic").strip().lower()
 
 # Stub orchestrator LLM (optional — canned fallback when unset).
-ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
-ANTHROPIC_MODEL = os.getenv('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+
+# Ollama configuration (used when LLM_PROVIDER in ('ollama'))
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:3b")
+LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:11434")
+LOCAL_LLM_TEMPERATURE = float(os.getenv("LOCAL_LLM_TEMPERATURE", "0.0"))
+LOCAL_LLM_TIMEOUT = float(os.getenv("LOCAL_LLM_TIMEOUT", "60.0"))
 
 # Qdrant vector store (RAG over manuals).
 # QDRANT_URL/QDRANT_API_KEY are unset by default → rag_engine falls back to a
 # local in-memory instance, useful for tests and CI without external services.
-QDRANT_URL = os.getenv('QDRANT_URL', ':memory:')
-QDRANT_API_KEY = os.getenv('QDRANT_API_KEY', '') or None
-QDRANT_COLLECTION_MANUALS = os.getenv('QDRANT_COLLECTION_MANUALS', 'arol_manuals_fastembed')
+QDRANT_URL = os.getenv("QDRANT_URL", ":memory:")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "") or None
+QDRANT_COLLECTION_MANUALS = os.getenv(
+    "QDRANT_COLLECTION_MANUALS", "arol_manuals_fastembed"
+)
 
 # Dense embedding model served by fastembed (no external API key required).
-EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'BAAI/bge-small-en-v1.5')
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 EMBEDDING_DIM = 384  # bge-small-en-v1.5 emits 384-dimensional vectors.
