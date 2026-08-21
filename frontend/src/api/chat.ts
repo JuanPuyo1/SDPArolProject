@@ -30,17 +30,17 @@ export type ThinkingStep = {
   durationMs?: number
 }
 
-/** One entry per AgentIntent value the backend router can choose (see
- * apps/agents/langgraph_orchestrator.py::AgentIntent). 'all' is a
- * frontend-only pseudo-tab, not a real agent. */
-export const AGENT_TABS = [
-  { id: 'all', label: 'All' },
-  { id: 'troubleshooting_service', label: 'Troubleshooting' },
-  { id: 'orders_business', label: 'Orders' },
-  { id: 'manuals', label: 'Manuals' },
-] as const
-
-export type AgentTabId = (typeof AGENT_TABS)[number]['id']
+/** Display label for an assistant reply's `agent` tag (see ChatMessage's
+ * agent badge) -- one entry per AgentIntent value the backend router can
+ * choose (see apps/agents/langgraph_orchestrator.py::AgentIntent). A single
+ * conversation can be answered by any/all of these across its turns, so
+ * there's no per-agent tab -- just this label lookup for the badge. */
+export const AGENT_LABELS: Record<string, string> = {
+  troubleshooting_service: 'Troubleshooting',
+  orders_business: 'Orders',
+  manuals: 'Manuals',
+  telemetry: 'Telemetry',
+}
 
 const TOOL_LABELS: Record<string, string> = {
   get_machine_info: 'Machine context loaded',

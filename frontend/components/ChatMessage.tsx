@@ -1,5 +1,21 @@
-import { AGENT_TABS, formatStepDuration, type ThinkingStep } from '../src/api/chat'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import type { AnchorHTMLAttributes } from 'react'
+import { AGENT_LABELS, formatStepDuration, type ThinkingStep } from '../src/api/chat'
 import './ChatMessage.css'
+
+// react-markdown never interprets raw HTML in the source by default (no
+// rehype-raw plugin here) -- the model's output, including anything sourced
+// from retrieved manuals or tool results, is rendered as text/markdown only,
+// never as live HTML. Only this small link override is customized, to open
+// externally and avoid a reverse-tabnabbing target="_blank" without rel.
+function MarkdownLink({ children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return (
+    <a {...props} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  )
+}
 
 export interface ChatAttachment {
   id: string
@@ -17,14 +33,10 @@ export interface ChatMessageData {
   // router's step chunk arrives. Undefined for the welcome message, user
   // messages, and anything from the router-less stub backend.
   agent?: string
-  // For a user message: the id of the assistant message replying to it.
-  // Lets the tab filter in ChatbotPage decide whether to show a user
-  // message based on which agent its reply was attributed to.
-  replyToId?: string
 }
 
 function agentLabel(agent: string): string {
-  return AGENT_TABS.find((tab) => tab.id === agent)?.label ?? agent
+  return AGENT_LABELS[agent] ?? agent
 }
 
 function formatSize(bytes: number) {
@@ -96,7 +108,13 @@ export default function ChatMessage({ message }: { message: ChatMessageData }) {
             )}
           </div>
         )}
-        {message.text && <p className="chat-message__text">{message.text}</p>}
+        {message.text && (
+          <div className="chat-message__text">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: MarkdownLink }}>
+              {message.text}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
     </div>
   )

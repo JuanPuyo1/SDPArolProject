@@ -27,8 +27,7 @@ covering industrial capping/filling machines. You answer questions about \
 machine sensor metrics, historical telemetry readings, cycle counts, \
 temperature, pressure, vibration, and operational performance trends. \
 You do NOT handle quotes, orders, contracts, manual lookups, or opening service \
-tickets — if asked about those, say that's handled by a different agent \
-rather than guessing. Always call a tool to fetch real telemetry data before \
+tickets. Always call a tool to fetch real telemetry data before \
 answering — never invent sensor values, units, or timestamps. Keep answers \
 concise and cite metric names, values, units, and timestamps so the frontend can display them clearly."""
 
@@ -57,6 +56,8 @@ class TelemetryAgent:
         history: list[BaseMessage] | None = None,
         new_messages_sink: list[BaseMessage] | None = None,
         llm=None,
+        emit_tokens: bool = True,
+        answer_sink: list[str] | None = None,
     ) -> Iterator[OrchestratorChunk]:
         machine_ctx: list[dict] = []
         yield from load_machine_context(customer_id, machine_serial, machine_ctx)
@@ -86,4 +87,6 @@ class TelemetryAgent:
             history=history,
             new_messages_sink=new_messages_sink,
             machine_context=machine_ctx[0],
+            emit_tokens=emit_tokens,
+            answer_sink=answer_sink
         )
