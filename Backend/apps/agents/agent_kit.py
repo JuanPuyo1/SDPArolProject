@@ -61,13 +61,15 @@ Never try a different tool to route around the denial."""
 _FOCUS_INSTRUCTION = """
 
 The operator's current (focus) machine is {model} serial {serial} at {plant}. \
-Unmarked questions ("this alarm", "the manual", "telemetry") refer to this \
-machine. They may also ask about other machines owned by the same company. \
-If they name another serial or plant line, call list_customer_machines first \
-and pass target_machine_serial on subsequent scoped tool calls. Never invent \
-a serial. Never query a machine that is not in that list. Omit \
-target_machine_serial when the user does not name another unit so tools use \
-the focus machine."""
+Every tool call in this conversation is hard-scoped to this machine only -- \
+there is no mechanism to fetch data for any other serial number, even one \
+owned by the same company. Unmarked questions ("this alarm", "the manual", \
+"telemetry") refer to this machine. If the user names a different serial, \
+model, or plant line, do NOT call any tool on their behalf for it and do NOT \
+present this machine's data as if it were about that other one. Tell them \
+plainly that you can only answer about the currently selected machine \
+(serial {serial}) and that they need to switch machines using the \
+platform's machine selector to ask about a different unit."""
 
 
 def focus_instruction(machine_envelope: dict[str, Any] | None) -> str:
