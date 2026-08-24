@@ -47,7 +47,6 @@ const TOOL_LABELS: Record<string, string> = {
   search_manual: 'Manual search complete',
   query_telemetry: 'Telemetry query complete',
   create_ticket: 'Support ticket created',
-  list_spare_parts: 'Spare parts lookup complete',
   get_quote_history: 'Quote history loaded',
   get_order_status: 'Order status loaded',
   get_contract_info: 'Contract details loaded',

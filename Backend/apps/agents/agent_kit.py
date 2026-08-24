@@ -64,6 +64,17 @@ Never reword a FORBIDDEN denial as "not found", "no data available", "I \
 couldn't find", or any other phrasing that reads as if nothing exists. \
 Never try a different tool to route around the denial."""
 
+_MANUAL_SPECIFICITY_INSTRUCTION = """
+
+Manual and error-code search hits carry a "machine_specific" field. When it \
+is false, that passage is shared/general AROL documentation, not this \
+machine's own manual -- included because nothing specific to this exact \
+unit matched. Say so plainly (e.g. "I couldn't find manual content specific \
+to your machine; here is general AROL guidance that may still apply") \
+rather than presenting it as if it were verified for this exact unit. Never \
+present a machine_specific=false result as if it came from the operator's \
+own machine manual."""
+
 _FOCUS_INSTRUCTION = """
 
 The operator's current (focus) machine is {model} serial {serial} at {plant}. \
@@ -318,6 +329,7 @@ def run_tool_calling_loop(
             content=system_prompt
             + _ACCESS_DENIAL_INSTRUCTION
             + _COLLABORATION_INSTRUCTION
+            + _MANUAL_SPECIFICITY_INSTRUCTION
             + focus_instruction(machine_context),
         ),
         *(history or []),

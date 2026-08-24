@@ -1,8 +1,7 @@
 import type { ChatMessageData } from '../../components/ChatMessage'
 
-/** Each session's memory survives route navigation and browser restarts, but
- * expires after this long without a new message in it, and is cleared
- * explicitly on logout (see useAuth.tsx). */
+/** Each session's memory survives route navigation, browser restarts, and
+ * logout, but expires after this long without a new message in it. */
 const TTL_MS = 24 * 60 * 60 * 1000
 
 /** Up to this many conversations can be open at once for a user. */
@@ -61,17 +60,5 @@ export function savePersistedChat(username: string, state: PersistedChatState): 
     localStorage.setItem(storageKey(username, state.machineSerial), JSON.stringify(state))
   } catch {
     // best-effort -- a full/unavailable localStorage shouldn't break the chat
-  }
-}
-
-/** Clears every machine's persisted chat for this user (e.g. on logout). */
-export function clearPersistedChat(username: string): void {
-  try {
-    const prefix = storageKeyPrefix(username)
-    for (const key of Object.keys(localStorage)) {
-      if (key.startsWith(prefix)) localStorage.removeItem(key)
-    }
-  } catch {
-    // best-effort
   }
 }

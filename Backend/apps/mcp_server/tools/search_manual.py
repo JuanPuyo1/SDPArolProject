@@ -31,6 +31,7 @@ def search_manual(params: SearchManualInput) -> SearchManualOutput:
             page=h.get('page_number'),
             score=h.get('score'),
             source=h.get('source') or machine.manual_url or None,
+            machine_specific=h.get('machine_specific', True),
         )
         for h in raw_hits
     ]

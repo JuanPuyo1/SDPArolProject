@@ -37,11 +37,9 @@ class SearchErrorCodesInput(ScopedContext):
 
 
 class ErrorCodeHit(BaseModel):
-    code: str
     title: str
-    severity: str | None = None
     summary: str
-    recommended_actions: list[str] = Field(default_factory=list)
+    machine_specific: bool = True
 
 
 class SearchErrorCodesOutput(BaseModel):

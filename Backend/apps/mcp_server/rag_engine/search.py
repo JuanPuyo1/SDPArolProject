@@ -55,6 +55,16 @@ def _build_machine_serial_filter(machine_serial: str | None) -> models.Filter | 
 
 
 def _query_manuals(query: str, machine_serial: str | None, top_k: int) -> list[ScoredPoint]:
+    """Query the manuals collection, scoped to this machine (or AROL_GENERAL /
+    general_catalogue docs) when a machine_serial is given.
+
+    Deliberately does NOT retry without the filter on zero hits: that used to
+    fall back to an unrestricted search that could surface another specific
+    machine's own manual content mislabeled as this machine's answer. The
+    should-filter already covers the legitimate fallback universe (this
+    machine, plus shared/general docs) -- if nothing matches there, the
+    honest answer is no hits, not a different machine's manual.
+    """
     client = get_client()
     collection = ensure_manuals_collection(client)
     vector = embed_query(query)
@@ -68,18 +78,18 @@ def _query_manuals(query: str, machine_serial: str | None, top_k: int) -> list[S
     ).points
 
     if not hits and query_filter is not None:
-        log.info(
-            "no filtered hits for serial=%r, retrying without machine filter",
-            machine_serial,
-        )
-        hits = client.query_points(
-            collection_name=collection,
-            query=vector,
-            limit=top_k,
-            with_payload=True,
-        ).points
+        log.info("no hits for serial=%r within machine/general scope", machine_serial)
 
     return hits
+
+
+def _is_machine_specific(payload: dict[str, Any], machine_serial: str | None) -> bool:
+    """True when a hit is this exact machine's own manual content, as
+    opposed to a shared/general-catalogue passage returned because nothing
+    specific to this machine matched."""
+    if not machine_serial:
+        return True
+    return payload.get("machine_serial") == machine_serial
 
 
 def search_manuals(
@@ -111,6 +121,7 @@ def search_manuals(
                 "score": float(hit.score) if hit.score is not None else None,
                 "source": payload.get("source") or payload.get("doc_id"),
                 "doc_type": payload.get("doc_type"),
+                "machine_specific": _is_machine_specific(payload, machine_serial),
             },
         )
     log.info(
@@ -133,9 +144,10 @@ def search_error_codes(
 
     Same manuals collection and filter as search_manuals() -- see this
     module's docstring for why there's no separate error-code collection.
-    The MCP tool converts each dict into an ``ErrorCodeHit``; code/severity/
-    recommended_actions are left unset since a manual passage doesn't carry
-    that structured metadata, only the descriptive remedy text (``summary``).
+    The MCP tool converts each dict into an ``ErrorCodeHit``, which carries
+    only the descriptive remedy text (``summary``) -- a manual passage isn't
+    structured data, so there is no per-hit code/severity/recommended-actions
+    to extract; inventing those fields would just be unfilled placeholders.
     """
     if not query or not query.strip():
         return []
@@ -148,13 +160,11 @@ def search_error_codes(
         payload = hit.payload or {}
         results.append(
             {
-                "code": "",
                 "title": f"{payload.get('machine_serial', 'AROL')} Manual",
-                "severity": None,
                 "summary": payload.get("parent_content") or payload.get("child_content", ""),
-                "recommended_actions": [],
                 "score": float(hit.score) if hit.score is not None else None,
                 "source": payload.get("source") or payload.get("doc_id"),
+                "machine_specific": _is_machine_specific(payload, machine_serial),
             },
         )
     log.info(

@@ -17,6 +17,7 @@ class ManualHit(BaseModel):
     page: int | None = None
     score: float | None = None
     source: str | None = None
+    machine_specific: bool = True
 
 
 class SearchManualOutput(BaseModel):

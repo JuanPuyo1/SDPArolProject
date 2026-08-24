@@ -8,7 +8,6 @@ from .get_quote_history import get_quote_history
 from .list_alarms import list_alarms
 from .list_customer_machines import list_customer_machines
 from .list_maintenance_tickets import list_maintenance_tickets
-from .list_spare_parts import list_spare_parts
 from .query_telemetry import query_telemetry
 from .search_error_codes import search_error_codes
 from .search_manual import search_manual
@@ -23,7 +22,6 @@ __all__ = [
     'search_error_codes',
     'list_alarms',
     'list_maintenance_tickets',
-    'list_spare_parts',
     'get_quote_history',
     'get_order_status',
 ]
