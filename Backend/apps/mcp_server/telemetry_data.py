@@ -11,6 +11,9 @@ the machine wasn't actually Running is misleading without that context.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
+
+from django.db.models import Avg, Count, Max, Min, QuerySet, Sum
 
 from apps.machines.models import Machine, TelemetrySnapshot
 
@@ -48,6 +51,26 @@ def _resolve_metric(metric: str) -> tuple[str, str | None]:
     return METRIC_MAP[key]
 
 
+def _telemetry_queryset(
+    machine: Machine,
+    *,
+    from_ts: datetime | None = None,
+    to_ts: datetime | None = None,
+) -> QuerySet[TelemetrySnapshot]:
+    snapshots = TelemetrySnapshot.objects.filter(machine=machine)
+    if from_ts is not None:
+        snapshots = snapshots.filter(timestamp__gte=from_ts)
+    if to_ts is not None:
+        snapshots = snapshots.filter(timestamp__lte=to_ts)
+    return snapshots
+
+
+def _as_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
 def query_telemetry(
     machine: Machine,
     *,
@@ -57,12 +80,11 @@ def query_telemetry(
     limit: int = 50,
 ) -> list[dict]:
     field_name, unit = _resolve_metric(metric)
-    snapshots = TelemetrySnapshot.objects.filter(machine=machine)
-    if from_ts is not None:
-        snapshots = snapshots.filter(timestamp__gte=from_ts)
-    if to_ts is not None:
-        snapshots = snapshots.filter(timestamp__lte=to_ts)
-    snapshots = snapshots.order_by('-timestamp')[:limit]
+    snapshots = _telemetry_queryset(
+        machine,
+        from_ts=from_ts,
+        to_ts=to_ts,
+    ).order_by('-timestamp')[:limit]
     return [
         {
             'ts': snapshot.timestamp,
@@ -73,3 +95,39 @@ def query_telemetry(
         }
         for snapshot in snapshots
     ]
+
+
+def query_telemetry_aggregates(
+    machine: Machine,
+    *,
+    metric: str = 'temperature',
+    from_ts: datetime | None = None,
+    to_ts: datetime | None = None,
+) -> dict:
+    """Reduce a metric over every snapshot in the scoped time window (no limit)."""
+    field_name, unit = _resolve_metric(metric)
+    snapshots = _telemetry_queryset(
+        machine,
+        from_ts=from_ts,
+        to_ts=to_ts,
+    )
+    stats = snapshots.aggregate(
+        count=Count(field_name),
+        min=Min(field_name),
+        max=Max(field_name),
+        avg=Avg(field_name),
+        sum=Sum(field_name),
+    )
+    operational_statuses = sorted(
+        snapshots.values_list('operational_status', flat=True).distinct(),
+    )
+    return {
+        'metric': metric,
+        'unit': unit,
+        'count': stats['count'],
+        'min': _as_float(stats['min']),
+        'max': _as_float(stats['max']),
+        'avg': _as_float(stats['avg']),
+        'sum': _as_float(stats['sum']),
+        'operational_statuses': operational_statuses,
+    }

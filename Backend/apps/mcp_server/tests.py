@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+from decimal import Decimal
+
 from django.test import Client, TestCase, override_settings
 
 from apps.core.test_fixtures import PASSWORD, seed_spec_fleet
@@ -249,6 +252,155 @@ class TelemetryToolTests(TestCase):
             },
         )
         self.assertEqual(len(result["data"]["points"]), 1)
+
+    def test_average_temperature_question(self) -> None:
+        """User: What's the average temperature this week?"""
+        result = registry.invoke(
+            "query_telemetry",
+            {
+                "customer_id": "acme_full",
+                "machine_serial": "17478",
+                "metric": "temperature",
+                "include_aggregates": True,
+                "include_points": False,
+            },
+        )
+        self.assertEqual(result["status"], "ok")
+        agg = result["data"]["aggregates"]
+        self.assertEqual(agg["count"], 2)
+        self.assertEqual(agg["avg"], 34.5)
+        self.assertEqual(agg["unit"], "°C")
+        self.assertEqual(result["data"]["points"], [])
+        self.assertEqual(set(agg["operational_statuses"]), {"Running", "Idle"})
+
+    def test_max_production_rate_question(self) -> None:
+        """User: What was the peak / max production rate?"""
+        result = registry.invoke(
+            "query_telemetry",
+            {
+                "customer_id": "acme_full",
+                "machine_serial": "17478",
+                "metric": "production_rate",
+                "include_aggregates": True,
+                "include_points": False,
+            },
+        )
+        agg = result["data"]["aggregates"]
+        self.assertEqual(agg["max"], 18000.0)
+        self.assertEqual(agg["min"], 0.0)
+        self.assertEqual(agg["unit"], "BPH")
+
+    def test_minimum_temperature_question(self) -> None:
+        """User: What's the lowest temperature recorded?"""
+        result = registry.invoke(
+            "query_telemetry",
+            {
+                "customer_id": "acme_full",
+                "machine_serial": "17478",
+                "metric": "temp",
+                "include_aggregates": True,
+                "include_points": False,
+            },
+        )
+        self.assertEqual(result["data"]["aggregates"]["min"], 28.0)
+
+    def test_total_energy_question(self) -> None:
+        """User: How much energy did the machine consume in total?"""
+        result = registry.invoke(
+            "query_telemetry",
+            {
+                "customer_id": "acme_full",
+                "machine_serial": "17478",
+                "metric": "energy",
+                "include_aggregates": True,
+                "include_points": False,
+            },
+        )
+        agg = result["data"]["aggregates"]
+        self.assertEqual(agg["sum"], 13.6)
+        self.assertEqual(agg["avg"], 6.8)
+        self.assertEqual(agg["unit"], "kWh")
+
+    def test_reading_count_question(self) -> None:
+        """User: How many telemetry readings do we have?"""
+        result = registry.invoke(
+            "query_telemetry",
+            {
+                "customer_id": "acme_full",
+                "machine_serial": "17478",
+                "metric": "uptime",
+                "include_aggregates": True,
+                "include_points": False,
+            },
+        )
+        self.assertEqual(result["data"]["aggregates"]["count"], 2)
+
+    def test_aggregates_cover_full_window_not_point_limit(self) -> None:
+        """Aggregates use every snapshot in the window; limit only caps raw points."""
+        from apps.machines.models import TelemetrySnapshot
+
+        machine = self.fleet.machine
+        base = TelemetrySnapshot.objects.get(telemetry_id="TEL-RUN").timestamp
+        for idx in range(3):
+            TelemetrySnapshot.objects.create(
+                telemetry_id=f"TEL-AGG-{idx}",
+                machine=machine,
+                timestamp=base - timedelta(hours=idx + 2),
+                operational_status="Running",
+                production_rate_bph=1000 * (idx + 1),
+                uptime_percentage=Decimal("50.0"),
+                alarm_count=0,
+                temperature_c=Decimal("30.0"),
+                energy_kwh=Decimal("2.00"),
+                health_note="extra",
+            )
+
+        agg_result = registry.invoke(
+            "query_telemetry",
+            {
+                "customer_id": "acme_full",
+                "machine_serial": "17478",
+                "metric": "production_rate",
+                "include_aggregates": True,
+                "include_points": False,
+            },
+        )
+        self.assertEqual(agg_result["data"]["aggregates"]["count"], 5)
+        self.assertEqual(agg_result["data"]["aggregates"]["sum"], 24000.0)
+
+        points_result = registry.invoke(
+            "query_telemetry",
+            {
+                "customer_id": "acme_full",
+                "machine_serial": "17478",
+                "metric": "production_rate",
+                "include_aggregates": True,
+                "include_points": True,
+                "limit": 2,
+            },
+        )
+        self.assertEqual(len(points_result["data"]["points"]), 2)
+        self.assertEqual(points_result["data"]["aggregates"]["count"], 5)
+
+    def test_time_window_limits_aggregates(self) -> None:
+        from apps.machines.models import TelemetrySnapshot
+
+        running = TelemetrySnapshot.objects.get(telemetry_id="TEL-RUN")
+        result = registry.invoke(
+            "query_telemetry",
+            {
+                "customer_id": "acme_full",
+                "machine_serial": "17478",
+                "metric": "temperature",
+                "from_ts": running.timestamp.isoformat(),
+                "include_aggregates": True,
+                "include_points": False,
+            },
+        )
+        agg = result["data"]["aggregates"]
+        self.assertEqual(agg["count"], 1)
+        self.assertEqual(agg["avg"], 41.0)
+        self.assertEqual(agg["operational_statuses"], ["Running"])
 
 
 class AlarmAndTicketToolTests(TestCase):

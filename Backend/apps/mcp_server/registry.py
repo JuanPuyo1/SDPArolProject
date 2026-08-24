@@ -134,7 +134,13 @@ _TOOLS: dict[str, ToolSpec] = {
     ),
     "query_telemetry": ToolSpec(
         name="query_telemetry",
-        description="Query recent telemetry points for a metric on the scoped machine.",
+        description=(
+            "Query telemetry for a metric on the scoped machine. "
+            "Set include_aggregates=true when the user asks for average, min, max, "
+            "sum, or count — the tool returns those statistics computed in Python; "
+            "never derive them from raw points yourself. "
+            "Set include_points=false to skip raw rows when only aggregates matter."
+        ),
         input_model=QueryTelemetryInput,
         output_model=QueryTelemetryOutput,
         handler=query_telemetry,

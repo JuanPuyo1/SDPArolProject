@@ -40,12 +40,13 @@ units, and timestamps so the frontend can display them clearly.
 
 Every telemetry point also carries the machine's operational_status at that \
 moment (Running, Idle, Stopped, Alarm, Maintenance, or Size change). When \
-you report a statistic (average, trend, min/max, etc.) computed across a \
-time window, note what operational status the underlying readings were \
-taken in -- a statistic mixing Running periods with Stopped/Alarm/ \
-Maintenance periods can be misleading without that context, so call it out \
-explicitly rather than presenting one number as if the machine were \
-uniformly running throughout."""
+the user asks for an average, minimum, maximum, total, or count over a time \
+window, call query_telemetry with include_aggregates=true (and \
+include_points=false unless they also want the raw series). Use the tool's \
+aggregates field for those numbers — never compute statistics yourself from \
+raw points. When you report an aggregate, note the operational_statuses \
+returned alongside it; a statistic mixing Running periods with Stopped/Alarm/ \
+Maintenance periods can be misleading without that context."""
 
 _STEP_LABELS = {'query_telemetry': 'Querying machine telemetry metrics…'}
 
