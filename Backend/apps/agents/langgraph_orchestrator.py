@@ -104,7 +104,11 @@ diagnostics, error codes, and looking up or opening field-service tickets.
 - telemetry: sensor readings and historical telemetry points -- cycle counts, \
 temperature, pressure, vibration, operating speed.
 - manuals: how to operate, adjust, maintain, or repair the machine according \
-to its documentation -- procedures, settings, and part references.
+to its documentation -- procedures, settings, and part references. Also the \
+right agent for general product information -- specs, capabilities, model \
+overviews, "tell me about machine/model X" -- even for a machine or model \
+the account doesn't own; it falls back to AROL's general product catalogue \
+when nothing machine-specific matches.
 
 Return one task per agent the message actually needs.
 
@@ -120,8 +124,13 @@ prior conversation below to replace every pronoun and back-reference with the \
 concrete alarm code, ticket ID, quote number, or metric name. If the user \
 says "the linked alarms" and the previous turn listed AL057_BOTTLE_TOO_HIGH, \
 write AL057_BOTTLE_TOO_HIGH into the subtask.
-- For a greeting or a vague message ("hi", "what can you do?"), return a \
-single troubleshooting_service task -- it is the general-purpose front door.
+- For a genuine greeting or an empty/meta message ("hi", "what can you do?"), \
+return a single troubleshooting_service task -- it is the general-purpose \
+front door for those only.
+- For any question asking about a machine or model itself -- specs, \
+capabilities, what it is, general information -- route to manuals, not \
+troubleshooting_service, even if the question doesn't mention alarms, \
+manuals, or documentation by name.
 """
 
 

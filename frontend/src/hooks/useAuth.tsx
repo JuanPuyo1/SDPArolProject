@@ -13,7 +13,6 @@ import {
   logout as logoutRequest,
   type AuthUser,
 } from '../api/auth'
-import { clearPersistedChat } from '../api/chatStorage'
 import { clearMachineFocus } from '../api/machineFocus'
 
 type AuthContextValue = {
@@ -59,7 +58,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await logoutRequest()
     setUser(null)
     if (username) {
-      clearPersistedChat(username)
       clearMachineFocus(username)
     }
   }, [user])

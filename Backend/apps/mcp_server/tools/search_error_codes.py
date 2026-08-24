@@ -34,6 +34,7 @@ def search_error_codes(params: SearchErrorCodesInput) -> SearchErrorCodesOutput:
             severity=h.get("severity"),
             summary=h.get("summary", ""),
             recommended_actions=list(h.get("recommended_actions") or []),
+            machine_specific=h.get("machine_specific", True),
         )
         for h in raw_hits
     ]
