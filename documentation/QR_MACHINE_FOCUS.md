@@ -104,7 +104,7 @@ In `Backend/apps/agents/views.py`:
 
 - `customer_id` = **`request.user.username`** (never from the client body).
 - `machine_serial` = body field, validated against machines owned by the user’s company.
-- Invalid or unowned serial → **404**.
+- Invalid serial → **404**. Serial/machineId that exists but belongs to another company → **403**.
 
 So after a QR scan, the **frontend focus serial** is what the orchestrator receives on every message.
 

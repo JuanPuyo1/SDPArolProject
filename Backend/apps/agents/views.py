@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import uuid
 
+from django.db.models import Q
 from django.http import HttpRequest, JsonResponse, StreamingHttpResponse
 from django.views.decorators.http import require_POST
 
@@ -48,14 +49,45 @@ def _owned_machines(request: HttpRequest):
     return Machine.objects.filter(company_id=company_id)
 
 
-def _resolve_machine_serial(request: HttpRequest, body: dict) -> str | None:
+def _resolve_machine_serial(
+    request: HttpRequest,
+    body: dict,
+) -> tuple[str | None, JsonResponse | None]:
+    """Resolve the chat machine, distinguishing unknown vs out-of-tenant.
+
+    Matches GET /api/machines/<id>/: an identifier that exists in the fleet
+    but is not owned by this company is 403 (explicit denial), not 404.
+    Accepts serial number or machineId, same as the QR lookup.
+    """
     qs = _owned_machines(request)
-    serial = (body.get('machine_serial') or '').strip()
-    if serial:
-        return serial if qs.filter(serial_number=serial).exists() else None
+    identifier = (body.get('machine_serial') or '').strip()
+    if identifier:
+        machine = qs.filter(serial_number=identifier).first()
+        if machine is None:
+            machine = qs.filter(machine_id=identifier).first()
+        if machine is not None:
+            return machine.serial_number, None
+
+        exists = Machine.objects.filter(
+            Q(serial_number=identifier) | Q(machine_id=identifier),
+        ).exists()
+        if exists:
+            return None, _json_error(
+                'This machine is not assigned to your account.',
+                status=403,
+            )
+        return None, _json_error(
+            'No owned machine found for this account (or invalid machine_serial).',
+            status=404,
+        )
 
     machine = qs.order_by('serial_number').first()
-    return machine.serial_number if machine else None
+    if machine is None:
+        return None, _json_error(
+            'No owned machine found for this account (or invalid machine_serial).',
+            status=404,
+        )
+    return machine.serial_number, None
 
 
 @require_POST
@@ -80,12 +112,9 @@ def chat_view(request: HttpRequest) -> StreamingHttpResponse | JsonResponse:
     if not message:
         return _json_error('message is required.')
 
-    machine_serial = _resolve_machine_serial(request, body)
-    if not machine_serial:
-        return _json_error(
-            'No owned machine found for this account (or invalid machine_serial).',
-            status=404,
-        )
+    machine_serial, scope_error = _resolve_machine_serial(request, body)
+    if scope_error is not None:
+        return scope_error
 
     session_id = (body.get('session_id') or '').strip() or str(uuid.uuid4())
     customer_id = request.user.username

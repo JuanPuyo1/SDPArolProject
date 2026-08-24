@@ -25,7 +25,7 @@ The local Postgres role cannot `CREATE DATABASE`, so `config/test_settings.py` u
 | **Skipped** | 1 (`langchain_ollama` not installed in `.venv`) |
 | **Runtime** | ~1.1 s |
 
-**Verdict: the platform covers the AROL Access Model, fleet/QR lookup, and MCP tool layer well. Three spec gaps remain (chat 403 vs 404, RAG tenant leak, order amount from `Approved` revision).**
+**Verdict: the platform covers the AROL Access Model, fleet/QR lookup, and MCP tool layer well. Remaining spec gaps: RAG tenant leak, order amount from `Approved` revision.**
 
 ---
 
@@ -41,10 +41,16 @@ Both checks are implemented: `companyId` tenant boundary + `visibility` (`full` 
 | Machine identity + manuals visible to every role | **PASS** | `full`, `technician`, and `commercial` can `GET /api/machines/` and `get_machine_info` |
 | Operational data (telemetry, alarms, tickets) = `full` + `technician` | **PASS** | HTTP `/api/machines/tickets/` and MCP `query_telemetry` / `list_alarms` / `list_maintenance_tickets` |
 | Commercial data (quotes, orders) = `full` + `commercial` | **PASS** | HTTP `/api/quotes/orders/` and MCP `get_quote_history` / `get_order_status` |
-| Out-of-scope declined explicitly (not empty “not found”) | **PARTIAL** | Machine REST: 403 if the machine exists but is not owned, 404 if unknown. **Chat** `POST /api/agents/chat/` returns **404** for an existing foreign serial — same wording as “no machine”. MCP tools do the right thing (`FORBIDDEN`). |
+| Out-of-scope declined explicitly (not empty “not found”) | **PASS** | Machine REST and chat: 403 if the machine exists but is not owned, 404 if unknown. MCP tools return `FORBIDDEN`. |
 | Own `Companies` / `Users` row | **PASS** | Login/profile returns `company_id`, `visibility`, `user_id` |
 
-Failed test: `ChatViewTests.test_unowned_existing_machine_is_declined_explicitly` (`404 != 403`).
+## Failed tests (product gaps)
+
+1. **`apps.mcp_server.tests.RagManualSearchTests.test_search_does_not_return_another_machines_exclusive_manual`**  
+   Remove (or tightly constrain) the unfiltered retry in `apps/mcp_server/rag_engine/search.py` `_query_manuals`. Keep the `AROL_GENERAL` / general-catalogue `should` clauses; do not search the whole collection.
+
+2. **`apps.quotes.tests.QuoteConventionTests.test_order_amount_comes_from_approved_revision_not_later_rejected`**  
+   In `apps/mcp_server/orders_data.py`, select the **Approved** revision (controlled vocabulary), not `'accepted'` / latest `issued_at`.
 
 ### Dataset domains / models — **PASS**
 
@@ -136,13 +142,10 @@ From prior sessions (QR focus, visibility, agents, MCP):
 
 ## Failed tests (product gaps)
 
-1. **`apps.agents.tests.ChatViewTests.test_unowned_existing_machine_is_declined_explicitly`**  
-   Chat maps an existing but unowned serial to **404**. Machine REST already returns **403**. Align `_resolve_machine_serial` with `machines/views.py`.
-
-2. **`apps.mcp_server.tests.RagManualSearchTests.test_search_does_not_return_another_machines_exclusive_manual`**  
+1. **`apps.mcp_server.tests.RagManualSearchTests.test_search_does_not_return_another_machines_exclusive_manual`**  
    Remove (or tightly constrain) the unfiltered retry in `apps/mcp_server/rag_engine/search.py` `_query_manuals`. Keep the `AROL_GENERAL` / general-catalogue `should` clauses; do not search the whole collection.
 
-3. **`apps.quotes.tests.QuoteConventionTests.test_order_amount_comes_from_approved_revision_not_later_rejected`**  
+2. **`apps.quotes.tests.QuoteConventionTests.test_order_amount_comes_from_approved_revision_not_later_rejected`**  
    In `apps/mcp_server/orders_data.py`, select the **Approved** revision (controlled vocabulary), not `'accepted'` / latest `issued_at`.
 
 ---

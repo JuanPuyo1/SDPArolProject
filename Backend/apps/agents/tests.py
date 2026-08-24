@@ -733,6 +733,16 @@ class ChatViewTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertIn("not assigned", response.json()["error"].lower())
 
+        by_id = self.client.post(
+            "/api/agents/chat/",
+            data={
+                "message": "What alarms does this have?",
+                "machine_serial": "MCH-CHAT-FOREIGN",
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(by_id.status_code, 403)
+
     def test_unknown_serial_is_not_found(self) -> None:
         self.client.login(username="demo", password="demo")
         response = self.client.post(
