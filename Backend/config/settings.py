@@ -26,12 +26,15 @@ load_dotenv(BASE_DIR.parent / ".env")
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-6in+az(r2oq#i&u$p@)5)$@-78txw^u!r1ftq#3)s3mf^42689"
+SECRET_KEY = os.getenv(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-6in+az(r2oq#i&u$p@)5)$@-78txw^u!r1ftq#3)s3mf^42689",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DJANGO_DEBUG", "true").strip().lower() in {"1", "true", "yes", "on"}
 
-_DEFAULT_ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+_DEFAULT_ALLOWED_HOSTS = ["localhost", "127.0.0.1", "backend"]
 _EXTRA_ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",")
@@ -39,9 +42,17 @@ _EXTRA_ALLOWED_HOSTS = [
 ]
 ALLOWED_HOSTS = _DEFAULT_ALLOWED_HOSTS + _EXTRA_ALLOWED_HOSTS
 
+# Trust the nginx reverse proxy in Docker for Host / TLS headers.
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 _DEFAULT_CSRF_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost",
+    "http://127.0.0.1",
 ]
 _EXTRA_CSRF_ORIGINS = [
     origin.strip()
@@ -75,6 +86,7 @@ AUTH_USER_MODEL = "authentication.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -154,10 +166,24 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
+
+# Keep original filenames so machine manuals stay at /static/<serial>_manual_EN.pdf
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+
+# Serve manuals from STATICFILES_DIRS without copying 60MB+ of PDFs into STATIC_ROOT.
+WHITENOISE_USE_FINDERS = True
 
 # MCP debug HTTP invoke (POST /api/mcp/tools/<name>/invoke/).
 # Keep True for local/partner integration; set False in production.

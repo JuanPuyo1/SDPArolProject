@@ -1,0 +1,100 @@
+# Arol SDP stack: React/Vite SPA + Django 6 (ASGI/SSE) + PostgreSQL + optional Qdrant
+#
+#   docker compose up --build
+#   open http://localhost:8080
+#
+# Local Qdrant instead of Qdrant Cloud:
+#   QDRANT_URL=http://qdrant:6333 QDRANT_API_KEY= docker compose --profile local-qdrant up --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-arol}
+      POSTGRES_USER: ${POSTGRES_USER:-arol}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arol}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arol} -d ${POSTGRES_DB:-arol}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.6
+    profiles: ["local-qdrant"]
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-arol}
+      POSTGRES_USER: ${POSTGRES_USER:-arol}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arol}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-insecure-docker-dev-only}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080,http://localhost,http://127.0.0.1}
+      ORCHESTRATOR_BACKEND: ${ORCHESTRATOR_BACKEND:-stub}
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LOCAL_LLM_BASE_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      QDRANT_URL: ${QDRANT_URL:-:memory:}
+      RUN_DB_INIT: ${RUN_DB_INIT:-1}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
+    volumes:
+      - fastembed_cache:/home/appuser/.cache/fastembed
+      # Matches ingest default: BASE_DIR.parent / "Data" / "Manuals_md" → /Data/Manuals_md
+      - ./Data:/Data:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/auth/csrf/', timeout=5)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  fastembed_cache:

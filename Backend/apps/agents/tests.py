@@ -236,7 +236,7 @@ class BuildAgentToolsTests(TestCase):
         self.assertNotIn("customer_id", fields)
         self.assertNotIn("machine_serial", fields)
         self.assertIn("quote_id", fields)
-        self.assertIn("target_machine_serial", fields)
+        self.assertNotIn("target_machine_serial", fields)
 
     def test_unscoped_tools_do_not_expose_target_serial(self) -> None:
         built = mcp_tool(
@@ -261,7 +261,6 @@ class BuildAgentToolsTests(TestCase):
                 "get_quote_history",
                 "get_order_status",
                 "list_spare_parts",
-                "list_customer_machines",
             },
         )
 
@@ -276,7 +275,6 @@ class BuildAgentToolsTests(TestCase):
                 "list_alarms",
                 "create_ticket",
                 "list_maintenance_tickets",
-                "list_customer_machines",
             },
         )
         # 'shared' tools (get_machine_info, echo, ...) must not leak in even
@@ -287,16 +285,20 @@ class BuildAgentToolsTests(TestCase):
         from apps.agents.telemetry_agent import _build_tools
 
         names = {t.tool.name for t in _build_tools("demo", "A3279")}
-        self.assertEqual(names, {"query_telemetry", "list_customer_machines"})
+        self.assertEqual(names, {"query_telemetry"})
 
     def test_manuals_agent_owns_search_manual_only(self) -> None:
         from apps.agents.manuals_agent import _build_tools
 
         names = {t.tool.name for t in _build_tools("demo", "A3279")}
-        self.assertEqual(names, {"search_manual", "list_customer_machines"})
+        self.assertEqual(names, {"search_manual"})
 
 
-class McpToolTargetSerialTests(TestCase):
+class McpToolFocusSerialTests(TestCase):
+    """After QR machine-focus, tools are hard-scoped to the chat serial.
+    target_machine_serial is no longer an LLM-visible argument.
+    """
+
     def setUp(self) -> None:
         User = get_user_model()
         self.user = User.objects.create_user(username="demo", password="demo")
@@ -311,37 +313,16 @@ class McpToolTargetSerialTests(TestCase):
             configuration_profile="Test config 2",
             plc_family="SIEMENS-SIMATIC-S7",
         )
-        other_company = Company.objects.create(
-            company_id="CMP-OTHER-AGENT",
-            company_name="Other Co",
-            country="France",
-            sector="Spirits",
-            city="Saintes",
-            currency="EUR",
-            locale="fr-FR",
-        )
-        Machine.objects.create(
-            machine_id="MCH-FOREIGN",
-            company=other_company,
-            model=self.machine.model,
-            serial_number="FOREIGN1",
-            delivery_date=date(2018, 1, 1),
-            plant_location="Other plant",
-            configuration_profile="Foreign config",
-            plc_family="SIEMENS-SIMATIC-S7",
-        )
 
-    def test_target_serial_of_owned_machine_is_used(self) -> None:
+    def test_invoke_always_uses_the_focus_serial(self) -> None:
         built = mcp_tool("get_machine_info", customer_id="demo", machine_serial="A3279")
-        result = built.tool.invoke({"target_machine_serial": "17478"})
+        result = built.tool.invoke({})
         self.assertEqual(result["status"], "ok")
-        self.assertEqual(result["data"]["machine"]["serialNumber"], "17478")
+        self.assertEqual(result["data"]["machine"]["serialNumber"], "A3279")
 
-    def test_target_serial_of_unowned_machine_is_forbidden(self) -> None:
+    def test_target_machine_serial_is_not_on_the_llm_schema(self) -> None:
         built = mcp_tool("get_machine_info", customer_id="demo", machine_serial="A3279")
-        result = built.tool.invoke({"target_machine_serial": "FOREIGN1"})
-        self.assertEqual(result["status"], "error")
-        self.assertEqual(result["code"], "FORBIDDEN")
+        self.assertNotIn("target_machine_serial", built.tool.args_schema.model_fields)
 
 
 class StubOrchestratorTests(TestCase):
@@ -692,13 +673,83 @@ class ChatViewTests(TestCase):
                 data={"message": "What machine is this?", "machine_serial": "A3279"},
                 content_type="application/json",
             )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "text/event-stream")
-        body = b"".join(response.streaming_content).decode()
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["Content-Type"], "text/event-stream")
+            body = b"".join(response.streaming_content).decode()
         self.assertIn('"type": "token"', body)
         self.assertIn('"type": "tool"', body)
         self.assertIn('"type": "step"', body)
         self.assertIn('"type": "done"', body)
+        self.assertTrue(response["X-Session-Id"])
+
+    def test_chat_customer_id_is_taken_from_session_not_body(self) -> None:
+        """customer_id must never be accepted from the client body."""
+        llm = _ScriptedLLM([_text_turn("ok")])
+        self.client.login(username="demo", password="demo")
+        with patch(
+            "apps.agents.troubleshooting_service_agent.build_llm", return_value=llm
+        ):
+            response = self.client.post(
+                "/api/agents/chat/",
+                data={
+                    "message": "What machine is this?",
+                    "machine_serial": "A3279",
+                    "customer_id": "someone-else",
+                },
+                content_type="application/json",
+            )
+            body = b"".join(response.streaming_content).decode()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"type": "done"', body)
+        self.assertNotIn("Machine is not assigned", body)
+
+    def test_unowned_existing_machine_is_declined_explicitly(self) -> None:
+        """AROL Access Model: out-of-scope must not look like 'not found'."""
+        other_company = Company.objects.create(
+            company_id="CMP-CHAT-OTHER",
+            company_name="Other Chat Co",
+            country="France",
+            sector="Spirits",
+            city="Saintes",
+            currency="EUR",
+            locale="fr-FR",
+        )
+        Machine.objects.create(
+            machine_id="MCH-CHAT-FOREIGN",
+            company=other_company,
+            model=Machine.objects.get(serial_number="A3279").model,
+            serial_number="99999",
+            delivery_date=date(2018, 1, 1),
+            plant_location="Other plant",
+            configuration_profile="Foreign",
+            plc_family="SIEMENS-SIMATIC-S7",
+        )
+        self.client.login(username="demo", password="demo")
+        response = self.client.post(
+            "/api/agents/chat/",
+            data={"message": "What alarms does this have?", "machine_serial": "99999"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("not assigned", response.json()["error"].lower())
+
+    def test_unknown_serial_is_not_found(self) -> None:
+        self.client.login(username="demo", password="demo")
+        response = self.client.post(
+            "/api/agents/chat/",
+            data={"message": "hello", "machine_serial": "NO-SUCH"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+
+class OrchestratorFactoryTests(TestCase):
+    def test_factory_returns_stub_when_configured(self) -> None:
+        from apps.agents.factory import get_orchestrator
+        from apps.agents.stub_orchestrator import StubOrchestrator
+
+        with override_settings(ORCHESTRATOR_BACKEND="stub"):
+            self.assertIsInstance(get_orchestrator(), StubOrchestrator)
 
 
 class TelemetryAgentTests(TestCase):
@@ -746,9 +797,7 @@ class LLMFactoryTests(TestCase):
             get_base_chat_model,
         )
         from langchain_anthropic import ChatAnthropic
-        from langchain_ollama import ChatOllama
 
-        # 1. Anthropic provider (default)
         with override_settings(
             LLM_PROVIDER="anthropic",
             ANTHROPIC_MODEL="claude-3-haiku",
@@ -760,7 +809,11 @@ class LLMFactoryTests(TestCase):
             self.assertIsInstance(llm, ChatAnthropic)
             self.assertEqual(llm.model, "claude-3-haiku")
 
-        # 2. Ollama / Local provider
+        try:
+            from langchain_ollama import ChatOllama
+        except ImportError:
+            self.skipTest("langchain_ollama is not installed in this venv")
+
         with override_settings(
             LLM_PROVIDER="ollama",
             LOCAL_LLM_MODEL="qwen2.5:3b",

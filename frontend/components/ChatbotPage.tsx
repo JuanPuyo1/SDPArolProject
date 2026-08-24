@@ -12,7 +12,6 @@ import {
   MAX_SESSIONS,
   type PersistedSession,
 } from '../src/api/chatStorage'
-// @ts-expect-error Side-effect CSS import resolved by bundler
 import './ChatbotPage.css'
 
 const ACCEPTED_TYPES = 'image/*,.txt,.text/plain,.pdf,application/pdf'

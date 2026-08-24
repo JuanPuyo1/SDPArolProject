@@ -1,0 +1,33 @@
+.git
+.gitignore
+.cursor
+.cursorrules
+.venv
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.DS_Store
+**/.env
+**/.env.*
+
+# Frontend build leftovers (image installs its own node_modules)
+frontend/node_modules
+frontend/dist
+node_modules
+package.json
+package-lock.json
+
+# Heavy / unused in the runtime image
+Data
+Data.zip
+documentation
+*.md
+AROL_Q2_synthetic_fleet_dataset.xlsx
+
+# Local junk
+Backend/cookies.txt
+Backend/**/*.sqlite3
+**/.idea
+**/.vscode
