@@ -1,6 +1,5 @@
 """Pydantic I/O schemas for MCP tools."""
 
-from .business import ListSparePartsInput, ListSparePartsOutput, SparePartItem
 from .common import ScopedContext, ToolError, ToolResponse
 from .echo import EchoInput, EchoOutput
 from .machine import (
@@ -33,7 +32,4 @@ __all__ = [
     'TelemetryPoint',
     'CreateTicketInput',
     'CreateTicketOutput',
-    'ListSparePartsInput',
-    'ListSparePartsOutput',
-    'SparePartItem',
 ]

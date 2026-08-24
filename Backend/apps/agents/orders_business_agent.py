@@ -1,10 +1,9 @@
 """
 Orders/Business agent — LangChain tool-calling adapter.
 
-Answers quote-history, order-status, and spare-parts questions by calling
-MCP business tools (real tenant scoping; quotes/orders are ORM-backed, spare
-parts are still sample data until the catalog system is connected),
-streaming step + tool + token chunks for the thinking-chain UI.
+Answers quote-history and order-status questions by calling MCP business
+tools (real tenant scoping; quotes/orders are ORM-backed), streaming
+step + tool + token chunks for the thinking-chain UI.
 """
 
 from __future__ import annotations
@@ -17,13 +16,12 @@ from apps.agents.agent_kit import AgentTool, build_agent_tools, build_llm, load_
 from apps.agents.ports import ChatAttachmentRef, OrchestratorChunk
 
 SYSTEM_PROMPT = """You are the Orders/Business agent for AROL's customer \
-platform. You answer questions about quotes (including revision history), \
-order status, and spare parts for industrial capping/filling machines. \
-You do NOT handle service tickets, troubleshooting, or contract/warranty \
+platform. You answer questions about quotes (including revision history) \
+and order status for industrial capping/filling machines. You do NOT \
+handle service tickets, troubleshooting, spare parts, or contract/warranty \
 lookups. Always call a tool to fetch real data before answering — never \
-invent quote/order numbers, dates, statuses, or part numbers. Keep answers \
-concise and cite the relevant quote/order/part IDs so the frontend can \
-link to them."""
+invent quote/order numbers, dates, or statuses. Keep answers concise and \
+cite the relevant quote/order IDs so the frontend can link to them."""
 
 # Registry.py owns each tool's name/description/schema; this only supplies
 # the UI-facing progress label shown while it runs (not duplicated data --
@@ -31,7 +29,6 @@ link to them."""
 _STEP_LABELS = {
     'get_quote_history': 'Looking up quote history…',
     'get_order_status': 'Checking order status…',
-    'list_spare_parts': 'Looking up spare parts…',
 }
 
 

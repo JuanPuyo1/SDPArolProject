@@ -144,9 +144,10 @@ def search_error_codes(
 
     Same manuals collection and filter as search_manuals() -- see this
     module's docstring for why there's no separate error-code collection.
-    The MCP tool converts each dict into an ``ErrorCodeHit``; code/severity/
-    recommended_actions are left unset since a manual passage doesn't carry
-    that structured metadata, only the descriptive remedy text (``summary``).
+    The MCP tool converts each dict into an ``ErrorCodeHit``, which carries
+    only the descriptive remedy text (``summary``) -- a manual passage isn't
+    structured data, so there is no per-hit code/severity/recommended-actions
+    to extract; inventing those fields would just be unfilled placeholders.
     """
     if not query or not query.strip():
         return []
@@ -159,11 +160,8 @@ def search_error_codes(
         payload = hit.payload or {}
         results.append(
             {
-                "code": "",
                 "title": f"{payload.get('machine_serial', 'AROL')} Manual",
-                "severity": None,
                 "summary": payload.get("parent_content") or payload.get("child_content", ""),
-                "recommended_actions": [],
                 "score": float(hit.score) if hit.score is not None else None,
                 "source": payload.get("source") or payload.get("doc_id"),
                 "machine_specific": _is_machine_specific(payload, machine_serial),

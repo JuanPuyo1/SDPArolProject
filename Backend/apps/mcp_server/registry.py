@@ -15,7 +15,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, ValidationError
 
 from apps.authentication.visibility import COMMERCIAL_VISIBLE, OPERATIONAL_VISIBLE
-from apps.mcp_server.schemas.business import ListSparePartsInput, ListSparePartsOutput
 from apps.mcp_server.schemas.common import ToolError
 from apps.mcp_server.schemas.echo import EchoInput, EchoOutput
 from apps.mcp_server.schemas.machine import (
@@ -54,7 +53,6 @@ from apps.mcp_server.tools import (
     list_alarms,
     list_customer_machines,
     list_maintenance_tickets,
-    list_spare_parts,
     query_telemetry,
     search_error_codes,
     search_manual,
@@ -88,7 +86,7 @@ class ToolSpec:
     @property
     def status(self) -> ToolStatus:
         """Derived, not hand-set. A tool is 'stub' iff its own Output model
-        declares a `stub` field (e.g. ListSparePartsOutput.stub: bool = True)
+        declares a `stub` field (e.g. CreateTicketOutput.stub: bool = True)
         -- previously `status` was a second, separately hand-typed kwarg on
         every ToolSpec, free to disagree with what the tool's own response
         payload claims about itself. Now there is exactly one place to mark
@@ -144,19 +142,9 @@ _TOOLS: dict[str, ToolSpec] = {
         requires_machine_scope=True,
         visibility_domain=OPERATIONAL_VISIBLE,
     ),
-    "list_spare_parts": ToolSpec(
-        name="list_spare_parts",
-        description="Search spare parts / catalog for the scoped machine.",
-        input_model=ListSparePartsInput,
-        output_model=ListSparePartsOutput,
-        handler=list_spare_parts,
-        agent="business",
-        requires_machine_scope=True,
-        visibility_domain=COMMERCIAL_VISIBLE,
-    ),
     "search_error_codes": ToolSpec(
         name="search_error_codes",
-        description="Look up error codes / alarms and recommended troubleshooting steps.",
+        description="Search the machine's manual for guidance on an error code, alarm, or symptom.",
         input_model=SearchErrorCodesInput,
         output_model=SearchErrorCodesOutput,
         handler=search_error_codes,

@@ -101,8 +101,9 @@ Available agents:
 invoices, contracts, warranty, pricing/purchasing.
 - troubleshooting_service: alarms, alarm history, faults, breakdowns, \
 diagnostics, error codes, and looking up or opening field-service tickets.
-- telemetry: sensor readings and historical telemetry points -- cycle counts, \
-temperature, pressure, vibration, operating speed.
+- telemetry: sensor readings and historical telemetry points -- temperature, \
+production rate / operating speed, uptime, alarm count, energy consumption, \
+and operational status (Running, Idle, Stopped, Alarm, Maintenance).
 - manuals: how to operate, adjust, maintain, or repair the machine according \
 to its documentation -- procedures, settings, and part references. Also the \
 right agent for general product information -- specs, capabilities, model \

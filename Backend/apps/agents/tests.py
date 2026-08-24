@@ -260,7 +260,6 @@ class BuildAgentToolsTests(TestCase):
             {
                 "get_quote_history",
                 "get_order_status",
-                "list_spare_parts",
                 "list_customer_machines",
             },
         )

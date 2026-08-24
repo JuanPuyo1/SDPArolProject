@@ -11,7 +11,7 @@ class QueryTelemetryInput(ScopedContext):
     metric: str = Field(
         ...,
         min_length=1,
-        description='Metric name, e.g. cycle_count, temperature, pressure.',
+        description='Metric name, e.g. temperature, production_rate, uptime, alarm_count, energy.',
     )
     from_ts: datetime | None = Field(
         default=None,
@@ -29,6 +29,7 @@ class TelemetryPoint(BaseModel):
     metric: str
     value: float
     unit: str | None = None
+    operational_status: str
 
 
 class QueryTelemetryOutput(BaseModel):
