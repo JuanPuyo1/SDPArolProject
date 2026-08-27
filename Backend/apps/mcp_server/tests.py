@@ -484,8 +484,19 @@ class QuoteOrderToolTests(TestCase):
             "get_order_status",
             {"customer_id": "acme_full", "machine_serial": "17478"},
         )
-        ids = {o["order_id"] for o in result["data"]["orders"]}
-        self.assertIn("ORD-SPEC-1", ids)
+        by_id = {o["order_id"]: o for o in result["data"]["orders"]}
+        self.assertIn("ORD-SPEC-1", by_id)
+        spec_order = by_id["ORD-SPEC-1"]
+        self.assertEqual(spec_order["expected_delivery_date"], "2025-04-01")
+        self.assertEqual(spec_order["shipment_status"], "Installed")
+        self.assertEqual(spec_order["currency"], "EUR")
+        self.assertEqual(spec_order["notes"], "From approved revision")
+        self.assertIn("order_lines", spec_order)
+        self.assertEqual(len(spec_order["order_lines"]), 1)
+        self.assertEqual(spec_order["order_lines"][0]["order_line_id"], "OL-1")
+        self.assertEqual(spec_order["order_lines"][0]["fulfillment_status"], "Delivered")
+
+
 
 
 class EchoAndHttpDebugTests(TestCase):

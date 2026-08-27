@@ -46,17 +46,18 @@ def quote_history(company: Company, quote_id: str | None = None) -> list[dict]:
 def _order_revision(order: Order) -> QuoteRevision | None:
     """The revision an order's items/total are drawn from: Order has no
     direct FK to the revision it was confirmed from, so this picks the
-    quote's 'accepted' revision, falling back to its most recently issued
-    revision if none is marked accepted."""
+    quote's 'approved' or 'accepted' revision, falling back to its most recently
+    issued revision if none is marked approved."""
     revisions = list(order.quote.revisions.prefetch_related('lines').all())
     if not revisions:
         return None
-    accepted = [r for r in revisions if r.revision_status.lower() == 'accepted']
-    return max(accepted or revisions, key=lambda r: r.issued_at)
+    approved = [r for r in revisions if r.revision_status.lower() in ('approved', 'accepted')]
+    return max(approved or revisions, key=lambda r: r.issued_at)
+
 
 
 def order_status(company: Company) -> list[dict]:
-    orders = Order.objects.filter(company=company).select_related('quote')
+    orders = Order.objects.filter(company=company).select_related('quote').prefetch_related('lines')
     records = []
     for order in orders:
         revision = _order_revision(order)
@@ -65,9 +66,22 @@ def order_status(company: Company) -> list[dict]:
                 'order_id': order.order_id,
                 'quote_id': order.quote_id,
                 'order_date': order.order_date.isoformat(),
+                'expected_delivery_date': order.expected_delivery_date.isoformat() if order.expected_delivery_date else None,
                 'status': order.order_status,
+                'shipment_status': order.shipment_status,
+                'currency': order.currency,
+                'notes': order.notes,
                 'item_summary': _revision_item_summary(revision) if revision else order.notes,
                 'amount_eur': _revision_amount(revision) if revision else 0.0,
+                'order_lines': [
+                    {
+                        'order_line_id': line.order_line_id,
+                        'fulfillment_status': line.fulfillment_status,
+                    }
+                    for line in order.lines.all()
+                ],
             }
         )
     return records
+
+

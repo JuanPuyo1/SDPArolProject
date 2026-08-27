@@ -214,9 +214,9 @@ _TOOLS: dict[str, ToolSpec] = {
     "get_order_status": ToolSpec(
         name="get_order_status",
         description=(
-            "Look up confirmed order status and amount for the scoped "
-            "customer/machine. Orders may reference a quote_id if they "
-            "originated from an accepted quote."
+            "Look up confirmed order status, shipment status, expected delivery date, currency, notes, "
+            "order lines (with line-item fulfillment status), and amount for the scoped "
+            "customer/machine. Orders may reference a quote_id if they originated from an accepted quote."
         ),
         input_model=OrderStatusInput,
         output_model=OrderStatusOutput,
