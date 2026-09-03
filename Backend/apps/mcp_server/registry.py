@@ -16,6 +16,12 @@ from pydantic import BaseModel, ValidationError
 
 from apps.authentication.visibility import COMMERCIAL_VISIBLE, OPERATIONAL_VISIBLE
 from apps.mcp_server.schemas.common import ToolError
+from apps.mcp_server.schemas.company import (
+    GetCompanyInfoInput,
+    GetCompanyInfoOutput,
+    ListCompanyUsersInput,
+    ListCompanyUsersOutput,
+)
 from apps.mcp_server.schemas.echo import EchoInput, EchoOutput
 from apps.mcp_server.schemas.machine import (
     GetMachineInfoInput,
@@ -47,10 +53,12 @@ from apps.mcp_server.scoping import ScopeError, resolve_customer
 from apps.mcp_server.tools import (
     create_ticket,
     echo,
+    get_company_info,
     get_machine_info,
     get_order_status,
     get_quote_history,
     list_alarms,
+    list_company_users,
     list_customer_machines,
     list_maintenance_tickets,
     query_telemetry,
@@ -66,6 +74,7 @@ AgentName = Literal[
     "business",
     "troubleshooting",
     "service",
+    "fleet",
 ]
 
 
@@ -224,6 +233,31 @@ _TOOLS: dict[str, ToolSpec] = {
         agent="business",
         requires_machine_scope=True,
         visibility_domain=COMMERCIAL_VISIBLE,
+    ),
+    "get_company_info": ToolSpec(
+        name="get_company_info",
+        description=(
+            "Return the caller's own company profile (name, country, sector, "
+            "city, currency, locale)."
+        ),
+        input_model=GetCompanyInfoInput,
+        output_model=GetCompanyInfoOutput,
+        handler=get_company_info,
+        agent="fleet",
+        requires_machine_scope=False,
+    ),
+    "list_company_users": ToolSpec(
+        name="list_company_users",
+        description=(
+            "List teammates (username, job title, role) at the caller's own "
+            "company. Never includes email, password, or other account "
+            "internals."
+        ),
+        input_model=ListCompanyUsersInput,
+        output_model=ListCompanyUsersOutput,
+        handler=list_company_users,
+        agent="fleet",
+        requires_machine_scope=False,
     ),
 }
 

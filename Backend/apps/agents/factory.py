@@ -16,3 +16,16 @@ def get_orchestrator() -> OrchestratorPort:
     from apps.agents.stub_orchestrator import StubOrchestrator
 
     return StubOrchestrator()
+
+
+def get_fleet_orchestrator():
+    """Same ORCHESTRATOR_BACKEND switch as get_orchestrator(), for the
+    separate general/fleet chatbot graph (see fleet_orchestrator.py)."""
+    backend = getattr(settings, 'ORCHESTRATOR_BACKEND', 'stub').lower()
+    if backend == 'langgraph':
+        from apps.agents.fleet_orchestrator import FleetOrchestrator
+
+        return FleetOrchestrator()
+    from apps.agents.fleet_orchestrator import StubFleetOrchestrator
+
+    return StubFleetOrchestrator()

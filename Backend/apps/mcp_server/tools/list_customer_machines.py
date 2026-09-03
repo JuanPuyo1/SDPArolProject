@@ -26,6 +26,17 @@ def list_customer_machines(params: ListCustomerMachinesInput) -> ListCustomerMac
             model=m.model.model_code,
             full_model=m.model.model_code,
             manufacturing_year=m.delivery_date.year,
+            plant_location=m.plant_location,
+            model_description=m.model.description,
+            container_type=m.model.container_type,
+            cap_type=m.model.cap_type,
+            industry_segment=m.model.industry_segment,
+            primitive_diameter=(
+                float(m.model.primitive_diameter)
+                if m.model.primitive_diameter is not None
+                else None
+            ),
+            nominal_heads=m.model.nominal_heads,
         )
         for m in qs
     ]

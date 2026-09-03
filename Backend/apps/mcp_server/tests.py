@@ -37,6 +37,8 @@ class McpRegistryCatalogTests(TestCase):
                 "list_maintenance_tickets",
                 "get_quote_history",
                 "get_order_status",
+                "get_company_info",
+                "list_company_users",
             },
         )
 
@@ -117,6 +119,23 @@ class McpTenantIsolationTests(TestCase):
         serials = {m["serial_number"] for m in result["data"]["machines"]}
         self.assertEqual(serials, {"17478", "A3279"})
 
+    def test_list_customer_machines_includes_model_details(self) -> None:
+        result = registry.invoke(
+            "list_customer_machines",
+            {"customer_id": "acme_full"},
+        )
+        by_serial = {m["serial_number"]: m for m in result["data"]["machines"]}
+        eagle = by_serial["17478"]
+        self.assertEqual(eagle["plant_location"], "Novara Line 1")
+        self.assertEqual(eagle["container_type"], "PET bottles")
+        self.assertEqual(eagle["cap_type"], "Plastic screw cap")
+        self.assertEqual(eagle["industry_segment"], "Beverage")
+        self.assertEqual(eagle["nominal_heads"], 8)
+        self.assertAlmostEqual(eagle["primitive_diameter"], 180.0)
+
+        no_diameter = by_serial["A3279"]
+        self.assertIsNone(no_diameter["primitive_diameter"])
+
     def test_list_customer_machines_empty_company_is_empty_not_error(self) -> None:
         result = registry.invoke(
             "list_customer_machines",
@@ -138,6 +157,52 @@ class McpTenantIsolationTests(TestCase):
         ids = {a["alarm_id"] for a in result["data"]["alarms"]}
         self.assertIn("ALM-OPEN", ids)
         self.assertNotIn("ALM-FOREIGN", ids)
+
+
+class FleetToolTests(TestCase):
+    """get_company_info / list_company_users -- the general fleet chatbot's
+    company-scoped, non-machine tools. Tenant isolation and PII exclusion."""
+
+    def setUp(self) -> None:
+        self.fleet = seed_spec_fleet()
+
+    def test_get_company_info_returns_own_company(self) -> None:
+        result = registry.invoke("get_company_info", {"customer_id": "acme_full"})
+        self.assertEqual(result["status"], "ok", result)
+        self.assertEqual(result["data"]["company_id"], "CMP-ACME")
+        self.assertEqual(result["data"]["company_name"], "Acme Bottling")
+        self.assertEqual(result["data"]["country"], "Italy")
+
+    def test_get_company_info_never_returns_another_companys_profile(self) -> None:
+        acme = registry.invoke("get_company_info", {"customer_id": "acme_full"})
+        other = registry.invoke("get_company_info", {"customer_id": "other_full"})
+        self.assertNotEqual(acme["data"]["company_id"], other["data"]["company_id"])
+        self.assertEqual(other["data"]["company_id"], "CMP-OTHER")
+
+    def test_list_company_users_never_crosses_company(self) -> None:
+        result = registry.invoke("list_company_users", {"customer_id": "acme_full"})
+        self.assertEqual(result["status"], "ok", result)
+        usernames = {u["username"] for u in result["data"]["users"]}
+        self.assertEqual(usernames, {"acme_full", "acme_tech", "acme_comm"})
+
+    def test_list_company_users_empty_company_is_empty_not_error(self) -> None:
+        result = registry.invoke("list_company_users", {"customer_id": "empty_user"})
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(len(result["data"]["users"]), 1)
+        self.assertEqual(result["data"]["users"][0]["username"], "empty_user")
+
+    def test_list_company_users_excludes_sensitive_fields(self) -> None:
+        result = registry.invoke("list_company_users", {"customer_id": "acme_full"})
+        user = result["data"]["users"][0]
+        self.assertEqual(set(user), {"user_id", "username", "job_title", "visibility"})
+        self.assertNotIn("email", user)
+        self.assertNotIn("password", user)
+
+    def test_any_visibility_role_can_call_fleet_tools(self) -> None:
+        for username in ("acme_full", "acme_tech", "acme_comm"):
+            for tool in ("get_company_info", "list_company_users"):
+                result = registry.invoke(tool, {"customer_id": username})
+                self.assertEqual(result["status"], "ok", (tool, username))
 
 
 class McpVisibilityTests(TestCase):
