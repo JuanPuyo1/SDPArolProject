@@ -17,6 +17,8 @@ from langchain_core.messages import AIMessageChunk
 from langchain_core.tools import tool
 
 from apps.agents.agent_kit import AgentTool, mcp_tool, run_tool_calling_loop
+from apps.agents.fleet_agent import FleetAgent
+from apps.agents.fleet_orchestrator import FleetOrchestrator
 from apps.agents.langgraph_orchestrator import (
     AgentIntent,
     LangGraphOrchestrator,
@@ -646,6 +648,80 @@ class LangGraphOrchestratorTests(TransactionTestCase):
         self.assertTrue(any("Will that actually fix it?" in t for t in history_texts))
 
 
+class FleetOrchestratorTests(TransactionTestCase):
+    """TransactionTestCase for the same reason as LangGraphOrchestratorTests
+    above: LangGraph dispatches node execution off-thread."""
+
+    def setUp(self) -> None:
+        User = get_user_model()
+        self.user = User.objects.create_user(username="demo", password="demo")
+        _make_machine(self.user)
+
+    def test_runs_fleet_agent_and_streams_done(self) -> None:
+        llm = _ScriptedLLM(
+            [
+                _tool_call_turn("list_customer_machines", {}),
+                _text_turn("Your company owns 1 machine: A3279."),
+            ],
+        )
+        with patch("apps.agents.fleet_agent.build_llm", return_value=llm):
+            chunks = list(
+                FleetOrchestrator().run(
+                    customer_id="demo",
+                    message="What machines do we own?",
+                    session_id="session-1",
+                ),
+            )
+
+        tool_names = [c.tool for c in chunks if c.type == "tool"]
+        self.assertIn("list_customer_machines", tool_names)
+        token_chunks = [c for c in chunks if c.type == "token"]
+        full_text = "".join(c.content for c in token_chunks)
+        self.assertIn("A3279", full_text)
+        self.assertEqual(chunks[-1].type, "done")
+
+    def test_second_turn_on_same_session_sees_first_turns_history(self) -> None:
+        """Same checkpointer-continuity assertion as
+        LangGraphOrchestratorTests, against FleetOrchestrator's own graph/
+        MemorySaver -- proves the two orchestrators' checkpoints don't
+        interfere and that fleet conversation memory works at all."""
+        seen_message_histories: list[list] = []
+
+        class _RecordingScriptedLLM(_ScriptedLLM):
+            def stream(self, messages):
+                seen_message_histories.append(list(messages))
+                yield from super().stream(messages)
+
+        llm = _RecordingScriptedLLM(
+            [
+                _tool_call_turn("list_customer_machines", {}),
+                _text_turn("Your company owns 1 machine: A3279."),
+                _text_turn("Yes, that is its only machine."),
+            ],
+        )
+        with patch("apps.agents.fleet_agent.build_llm", return_value=llm):
+            list(
+                FleetOrchestrator().run(
+                    customer_id="demo",
+                    message="What machines do we own?",
+                    session_id="fleet-session-continuity",
+                ),
+            )
+            list(
+                FleetOrchestrator().run(
+                    customer_id="demo",
+                    message="Is that the only one?",
+                    session_id="fleet-session-continuity",
+                ),
+            )
+
+        second_turn_messages = seen_message_histories[2]
+        history_texts = [getattr(m, "content", "") for m in second_turn_messages]
+        self.assertTrue(any("What machines do we own?" in t for t in history_texts))
+        self.assertTrue(any("owns 1 machine" in t for t in history_texts))
+        self.assertTrue(any("Is that the only one?" in t for t in history_texts))
+
+
 class ChatViewTests(TestCase):
     def setUp(self) -> None:
         User = get_user_model()
@@ -753,6 +829,75 @@ class ChatViewTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+class FleetChatViewTests(TestCase):
+    def setUp(self) -> None:
+        User = get_user_model()
+        self.user = User.objects.create_user(username="demo", password="demo")
+        _make_machine(self.user)
+        self.client = Client()
+
+    def test_fleet_chat_requires_auth(self) -> None:
+        response = self.client.post(
+            "/api/agents/fleet-chat/",
+            data={"message": "what machines do we own?"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 401)
+
+    @override_settings(ORCHESTRATOR_BACKEND="stub")
+    def test_fleet_chat_streams_sse_for_authenticated_user(self) -> None:
+        llm = _ScriptedLLM([_text_turn("Your company owns 1 machine.")])
+        self.client.login(username="demo", password="demo")
+        with patch("apps.agents.fleet_agent.build_llm", return_value=llm):
+            response = self.client.post(
+                "/api/agents/fleet-chat/",
+                data={"message": "What machines do we own?"},
+                content_type="application/json",
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["Content-Type"], "text/event-stream")
+            body = b"".join(response.streaming_content).decode()
+        self.assertIn('"type": "token"', body)
+        self.assertIn('"type": "done"', body)
+        self.assertTrue(response["X-Session-Id"])
+
+    @override_settings(ORCHESTRATOR_BACKEND="stub")
+    def test_fleet_chat_works_for_company_with_zero_machines(self) -> None:
+        """The specific gap that ruled out reusing /api/agents/chat/: that
+        endpoint 404s when the company owns no machines, but the fleet
+        chatbot must still answer (e.g. "we don't have any machines yet")."""
+        User = get_user_model()
+        empty_company = Company.objects.create(
+            company_id="CMP-FLEET-EMPTY",
+            company_name="No Machines Yet Inc",
+            country="Italy",
+            sector="Beverage",
+            city="Novara",
+            currency="EUR",
+            locale="it-IT",
+        )
+        User.objects.create_user(
+            username="no-machines", password="demo", company=empty_company,
+        )
+        llm = _ScriptedLLM(
+            [
+                _tool_call_turn("list_customer_machines", {}),
+                _text_turn("Your company doesn't have any machines yet."),
+            ],
+        )
+        self.client.login(username="no-machines", password="demo")
+        with patch("apps.agents.fleet_agent.build_llm", return_value=llm):
+            response = self.client.post(
+                "/api/agents/fleet-chat/",
+                data={"message": "What machines do we own?"},
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 200)
+        body = b"".join(response.streaming_content).decode()
+        self.assertIn('"type": "done"', body)
+        self.assertNotIn('"type": "error"', body)
+
+
 class OrchestratorFactoryTests(TestCase):
     def test_factory_returns_stub_when_configured(self) -> None:
         from apps.agents.factory import get_orchestrator
@@ -760,6 +905,15 @@ class OrchestratorFactoryTests(TestCase):
 
         with override_settings(ORCHESTRATOR_BACKEND="stub"):
             self.assertIsInstance(get_orchestrator(), StubOrchestrator)
+
+    def test_fleet_factory_returns_stub_and_langgraph_backends(self) -> None:
+        from apps.agents.factory import get_fleet_orchestrator
+        from apps.agents.fleet_orchestrator import FleetOrchestrator, StubFleetOrchestrator
+
+        with override_settings(ORCHESTRATOR_BACKEND="stub"):
+            self.assertIsInstance(get_fleet_orchestrator(), StubFleetOrchestrator)
+        with override_settings(ORCHESTRATOR_BACKEND="langgraph"):
+            self.assertIsInstance(get_fleet_orchestrator(), FleetOrchestrator)
 
 
 class TelemetryAgentTests(TestCase):
@@ -795,6 +949,60 @@ class TelemetryAgentTests(TestCase):
         token_chunks = [c for c in chunks if c.type == "token"]
         full_text = "".join(c.content for c in token_chunks)
         self.assertIn("24°C", full_text)
+
+
+class FleetAgentTests(TestCase):
+    def setUp(self) -> None:
+        User = get_user_model()
+        self.user = User.objects.create_user(username="demo", password="demo")
+        _make_machine(self.user)
+
+    def test_fleet_agent_runs_list_customer_machines_tool(self) -> None:
+        llm = _ScriptedLLM(
+            [
+                _tool_call_turn("list_customer_machines", {}),
+                _text_turn("Your company owns 1 machine: A3279 (CLOSYS EAGLE VP)."),
+            ],
+        )
+        chunks = list(
+            FleetAgent().run(
+                customer_id="demo",
+                message="What machines does my company own?",
+                llm=llm,
+            ),
+        )
+
+        tool_names = [c.tool for c in chunks if c.type == "tool"]
+        self.assertEqual(tool_names, ["list_customer_machines"])
+        machines_chunk = next(c for c in chunks if c.tool == "list_customer_machines")
+        self.assertEqual(machines_chunk.data["status"], "ok")
+        self.assertEqual(
+            machines_chunk.data["data"]["machines"][0]["serial_number"], "A3279",
+        )
+
+        token_chunks = [c for c in chunks if c.type == "token"]
+        full_text = "".join(c.content for c in token_chunks)
+        self.assertIn("A3279", full_text)
+
+    def test_fleet_agent_runs_company_and_user_tools(self) -> None:
+        llm = _ScriptedLLM(
+            [
+                _tool_call_turn("get_company_info", {}, call_id="call_1"),
+                _text_turn("Your company is demo Co, based in Novara, Italy."),
+            ],
+        )
+        chunks = list(
+            FleetAgent().run(
+                customer_id="demo",
+                message="What company is this account with?",
+                llm=llm,
+            ),
+        )
+        tool_names = [c.tool for c in chunks if c.type == "tool"]
+        self.assertEqual(tool_names, ["get_company_info"])
+        info_chunk = next(c for c in chunks if c.tool == "get_company_info")
+        self.assertEqual(info_chunk.data["status"], "ok")
+        self.assertEqual(info_chunk.data["data"]["country"], "Italy")
 
 
 class LLMFactoryTests(TestCase):

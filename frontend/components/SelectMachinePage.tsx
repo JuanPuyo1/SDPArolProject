@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchMachine } from '../src/api/machines'
 import { useActiveMachine } from '../src/hooks/useActiveMachine'
 import { useMachines } from '../src/hooks/useMachine'
+import FleetChatWidget from './FleetChatWidget'
 import './SelectMachinePage.css'
 
 export default function SelectMachinePage() {
@@ -76,6 +77,8 @@ export default function SelectMachinePage() {
           ))}
         </ul>
       )}
+
+      <FleetChatWidget />
     </div>
   )
 }

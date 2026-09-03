@@ -29,6 +29,13 @@ class MachineSummary(BaseModel):
     model: str
     full_model: str
     manufacturing_year: int
+    plant_location: str
+    model_description: str
+    container_type: str
+    cap_type: str
+    industry_segment: str
+    primitive_diameter: float | None
+    nominal_heads: int
 
 
 class GetMachineInfoOutput(BaseModel):
