@@ -1,5 +1,6 @@
 # Local datasets
-Data/
+Data/*
+!Data/extract_full_manuals.py
 Data.zip
 *.csv
 
@@ -24,3 +25,6 @@ dist/
 .env
 
 .cursorrules
+
+pyrefly.toml
+.vscode/
