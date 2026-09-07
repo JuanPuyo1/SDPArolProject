@@ -1,196 +1,154 @@
-# SDPArolProject — Arol SpA Customer Platform
+# SDPArolProject
 
-[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
-[![Django 6.0](https://img.shields.io/badge/django-6.0-green.svg)](https://www.djangoproject.com/)
-[![React 19](https://img.shields.io/badge/react-19-61dafb.svg)](https://react.dev/)
-[![Vite 8](https://img.shields.io/badge/vite-8-646cff.svg)](https://vitejs.dev/)
-[![Qdrant](https://img.shields.io/badge/Qdrant-VectorDB-red.svg)](https://qdrant.tech/)
-
-An **Industry 4.0 / 5.0 AI Agent & Customer Platform** for **Arol SpA** (global leader in capping and packaging machinery).
-
-This platform provides machine operators, plant managers, and field service engineers with interactive digital manual access, vector-search-powered troubleshooting, telemetry inspection, and support ticket escalation through a governed AI agent architecture.
+Instructions to compile/run the project, its execution parameters, and the input dataset formats it expects.
 
 ---
 
-## 🌟 Key Features
+## Prerequisites
 
-- **Governed Agentic AI Architecture**: Clean separation between Django HTTP edge, orchestrator planning, and an **MCP (Model Context Protocol)** tool gateway.
-- **RAG Vector Search Engine**: Integrated **Qdrant Vector Database** using **FastEmbed** embeddings for semantic retrieval over machine manuals and troubleshooting error codes.
-- **Tenant-Scoped Access**: Strict tenant isolation guaranteeing that queries and tools execute only against machines owned by the authenticated customer.
-- **SSE Streaming UI**: Real-time reasoning steps, tool invocation indicators, and token-by-token streaming response display in React.
-- **Flexible Orchestrator Backend**: Switch seamlessly between a local development simulator (`StubOrchestrator`) and production partner graph (`LangGraphOrchestrator`).
-
----
-
-## 🏗 System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  frontend/   Vite 8 + React 19 + TypeScript                     │
-│  Welcome / Login · Machine · Manual · Chatbot · Profile         │
-└────────────────────────────┬────────────────────────────────────┘
-                             │  Session Cookie + CSRF
-                             │  /api/auth · /api/machines · /api/agents/chat (SSE)
-┌────────────────────────────▼────────────────────────────────────┐
-│  Backend/   Django 6                                            │
-│                                                                 │
-│  authentication  →  Session auth, login/logout, user profile    │
-│  machines        →  Fleet ORM (customer → machine mapping)      │
-│  agents          →  HTTP/SSE boundary & OrchestratorPort        │
-│       │                                                         │
-│       ▼  OrchestratorPort.run(...)                              │
-│  StubOrchestrator  |  LangGraphOrchestrator (production graph)  │
-│       │                                                         │
-│       ▼  registry.invoke(tool, params)                          │
-│  mcp_server      →  Tools, Pydantic schemas & tenant scoping    │
-│       │                                                         │
-│       ├── rag_engine  →  Qdrant Vector DB + FastEmbed search    │
-│       └── machines / core / authentication                      │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Component               | Version                              |
+| :---------------------- | :----------------------------------- |
+| Python                  | 3.12+                                |
+| Node.js                 | ≥ 22.12 (required by Vite 8)        |
+| PostgreSQL              | 16 (or use the Docker option below)  |
+| Docker + Docker Compose | optional, only for the Docker option |
 
 ---
 
-## 📁 Repository Structure
+## How to Compile and Run
 
-```tree
-SDPArolProject/
-├── README.md                           # Project root documentation
-├── PROJECT_CONTEXT.md                  # Business vision, domain context & codebase guide
-├── .env.example                        # Environment variable template
-├── documentation/                      # Architecture & orchestrator guides
-│   ├── ARCHITECTURE.md                 # Technical architecture reference
-│   ├── ORCHESTRATOR_GUIDE.md           # MCP tool catalog & agent specifications
-│   └── ORCHESTRATOR_IMPLEMENTATION.md  # Port contract, SSE framing & adapter guide
-├── frontend/                           # React 19 + TypeScript + Vite SPA
-│   ├── components/                     # Page components (ChatbotPage, MachinePage, etc.)
-│   ├── src/
-│   │   ├── api/                        # API clients & SSE chat stream reader
-│   │   ├── hooks/                      # Custom hooks (useChat)
-│   │   └── App.tsx                     # Main routes
-│   └── vite.config.ts                  # Vite config with /api dev proxy
-└── Backend/                            # Django backend & MCP engine
-    ├── manage.py
-    ├── config/                         # Settings, URLs, WSGI/ASGI
-    └── apps/
-        ├── authentication/             # User sessions & login management
-        ├── machines/                   # Fleet ORM models & demo seeders
-        ├── mcp_server/                 # MCP tool registry, tools & rag_engine
-        │   ├── rag_engine/             # Qdrant client, collections & search
-        │   └── tools/                  # search_manual, query_telemetry, etc.
-        ├── agents/                     # HTTP/SSE endpoints, ports & orchestrators
-        └── core/                       # Shared logging & cost utilities
-```
+### Option A — Docker Compose (recommended)
 
----
-
-## 🚀 Quickstart Guide
-
-### Prerequisites
-- **Python 3.13+**
-- **Node.js ≥ 22.12** (required for Vite 8)
-
-### 1. Environment Setup
-
-Clone the repository and set up environment variables:
+From the repository root, create a `.env` file with the variables listed under Execution Parameters below (all have defaults, so an empty or partial `.env` also works), then:
 
 ```bash
-cp .env.example .env
+docker compose up --build
 ```
 
-Default `.env` configuration:
-```env
-ORCHESTRATOR_BACKEND=stub
-ANTHROPIC_API_KEY=
-ANTHROPIC_MODEL=claude-haiku-4-5-20251001
-QDRANT_URL=:memory:
+This builds and starts three services: `db` (PostgreSQL), `backend` (Django, served by Uvicorn on ASGI), and `frontend` (the built React app, served by nginx). On first boot the backend container automatically waits for PostgreSQL, runs migrations, and loads the fleet dataset from `Backend/static/AROL_Q2_synthetic_fleet_dataset.xlsx` if the database is empty (see `RUN_DB_INIT` below).
+
+Open **http://localhost:8080**.
+
+To use a local Qdrant container instead of Qdrant Cloud / in-memory:
+
+```bash
+QDRANT_URL=http://qdrant:6333 QDRANT_API_KEY= docker compose --profile local-qdrant up --build
 ```
 
-### 2. Backend Setup
+### Option B — Manual (local processes)
 
-From the repository root, activate your virtual environment and navigate to `Backend/`:
+**1. Backend** — from the repository root:
 
 ```bash
 cd Backend
+python -m venv ../arol_venv && source ../arol_venv/bin/activate   # or your own venv
+pip install -r requirements.txt
+
 python manage.py migrate
-python manage.py seed_demo_machine --username demo --password demo1234
-python manage.py runserver
+python initiliaze_database.py            # loads the fleet dataset (see Dataset Formats below)
+python manage.py runserver               # starts at http://127.0.0.1:8000
 ```
 
-The Django API server will start at `http://127.0.0.1:8000`.
-
-### 3. Frontend Setup
-
-In a separate terminal, navigate to `frontend/`:
+**2. Frontend** — in a separate terminal:
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev                              # starts at http://localhost:5173, proxies /api to :8000
 ```
 
-Open `http://localhost:5173` in your browser. Log in using `demo` / `demo1234`.
-
----
-
-## 🛠 Important Management Commands
-
-Below are key Django management commands available for database setup, demo data seeding, and RAG Vector DB manual ingestion:
-
-| Command | Description |
-| :--- | :--- |
-| `python manage.py migrate` | Apply database migrations for auth, machines, and sessions. |
-| `python manage.py seed_demo_machine --username demo` | Seed customer-owned machine record (`A3279`) and units for demo user. |
-| `python manage.py ingest_markdown_manuals` | **Ingest extracted Markdown manuals (`Data/Manuals_md`) into Qdrant DB** with parent/child chunking & page markers. |
-| `python manage.py seed_demo_manuals` | Seed default demo manual passages and error code entries into Qdrant DB. |
-| `python manage.py ingest_manual --pdf <path> --model <model>` | Ingest a single PDF manual directly into Qdrant. |
-
-### Running Markdown Manual Ingestion (`ingest_markdown_manuals`)
-
-The `ingest_markdown_manuals` command parses Markdown manuals, preserves `<!-- Page N -->` page numbers and header structures, embeds chunks with FastEmbed (`bge-small-en-v1.5`), and upserts them into the Qdrant DB `arol_manuals_fastembed` collection.
+Log in with any user created by `initiliaze_database.py` (default password `changeme`, see below), or seed one directly:
 
 ```bash
-# Navigate to Backend directory
-cd Backend
+python manage.py createsuperuser
+```
 
-# Ingest all markdown manuals from Data/Manuals_md into Qdrant (clears collection by default)
-python manage.py ingest_markdown_manuals
+**Compiling the frontend for production** (used by the Docker `frontend` target, or standalone):
 
-# Ingest without clearing existing Qdrant points
-python manage.py ingest_markdown_manuals --no-clear
-
-# Ingest from a custom markdown directory
-python manage.py ingest_markdown_manuals --dir /path/to/markdown_dir
+```bash
+cd frontend
+npm run build     # type-checks (tsc -b) then builds to frontend/dist/
 ```
 
 ---
 
-## 🧪 Testing & Verification
+## Execution Parameters
 
-### Running Unit Tests
+### Environment variables (`.env`, or exported before running)
 
-To run tests for the MCP server tools, RAG engine, and agent endpoints:
+| Variable                                                    | Default                         | Purpose                                                                                                   |
+| :---------------------------------------------------------- | :------------------------------ | :-------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `arol` / `arol` / `arol`  | PostgreSQL connection.                                                                                    |
+| `POSTGRES_HOST` / `POSTGRES_PORT`                       | `localhost` / `5432`        | PostgreSQL host/port (Docker Compose overrides`POSTGRES_HOST=db`).                                      |
+| `DJANGO_DEBUG`                                            | `true`                        | Django debug mode.                                                                                        |
+| `DJANGO_SECRET_KEY`                                       | dev-only default                | Django`SECRET_KEY`; set a real value in production.                                                     |
+| `DJANGO_ALLOWED_HOSTS`                                    | `localhost,127.0.0.1,backend` | Comma-separated extra allowed hosts.                                                                      |
+| `DJANGO_CSRF_TRUSTED_ORIGINS`                             | ``                              | Comma-separated extra trusted origins for CSRF.                                                           |
+| `ORCHESTRATOR_BACKEND`                                    | `stub`                        | Chat orchestrator backend:`stub` (local/CI, no router) or `langgraph` (production multi-agent graph). |
+| `LLM_PROVIDER`                                            | `anthropic`                   | `anthropic` or `ollama`.                                                                              |
+| `ANTHROPIC_API_KEY`                                       | ``                              | Required when`LLM_PROVIDER=anthropic`.                                                                  |
+| `ANTHROPIC_MODEL`                                         | `claude-haiku-4-5-20251001`   | Anthropic model id.                                                                                       |
+| `LOCAL_LLM_MODEL`                                         | `qwen2.5:3b`                  | Model name when`LLM_PROVIDER=ollama`.                                                                   |
+| `LOCAL_LLM_BASE_URL`                                      | `http://localhost:11434`      | Ollama server URL.                                                                                        |
+| `LOCAL_LLM_TEMPERATURE`                                   | `0.0`                         | Ollama sampling temperature.                                                                              |
+| `LOCAL_LLM_TIMEOUT`                                       | `60.0`                        | Ollama request timeout (seconds).                                                                         |
+| `QDRANT_URL`                                              | `:memory:`                    | Qdrant instance URL, or`:memory:` for an ephemeral local index.                                         |
+| `QDRANT_API_KEY`                                          | ``                              | Qdrant Cloud API key (unused for`:memory:` / local Qdrant).                                             |
+| `QDRANT_COLLECTION_MANUALS`                               | `arol_manuals_fastembed`      | Qdrant collection name for manual/error-code passages.                                                    |
+| `EMBEDDING_MODEL`                                         | `BAAI/bge-small-en-v1.5`      | FastEmbed embedding model.                                                                                |
+| `RUN_DB_INIT`                                             | `1`                           | Docker only:`1` auto-loads the fleet dataset on first boot if the database is empty, `0` disables it. |
+| `UVICORN_WORKERS`                                         | `1`                           | Docker only: number of Uvicorn worker processes.                                                          |
 
-```bash
-cd Backend
-python manage.py test apps.mcp_server apps.agents
-```
+### Backend management commands (`python manage.py <command>`, run from `Backend/`)
 
-### Testing the SSE Chat Stream via HTTP
+| Command                                                                      | Parameters                                                                                                                                     | Purpose                                                                    |
+| :--------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
+| `migrate`                                                                  | —                                                                                                                                             | Apply database migrations.                                                 |
+| `python initiliaze_database.py` *(standalone script, not `manage.py`)* | `--excel <path>` (default `static/AROL_Q2_synthetic_fleet_dataset.xlsx`), `--flush` (delete existing fleet data first, keeps superusers) | Load the fleet dataset — see Dataset Formats below.                       |
+| `seed_demo_machine`                                                        | `--username <name>` (default `demo`; must already exist, e.g. from `initiliaze_database.py`)                                             | Attach a demo machine (serial`A3279`) and its units to an existing user. |
+| `ingest_markdown_manuals`                                                  | `--dir <path>` (default `Data/Manuals_md`), `--no-clear` (keep existing Qdrant points instead of clearing first)                         | Ingest all Markdown manuals in a directory into Qdrant.                    |
+| `ingest_manual`                                                            | `--pdf <path>` (required), `--model <id>` (required), `--chapter <name>` (required), `--section <name>` (required)                     | Ingest a single PDF manual chapter/section into Qdrant.                    |
+| `seed_demo_manuals`                                                        | —                                                                                                                                             | Seed a small set of demo manual passages and error codes into Qdrant.      |
+| `test apps.mcp_server apps.agents`                                         | —                                                                                                                                             | Run the backend test suite.                                                |
 
-You can test the chat endpoint directly using `curl`:
+### Frontend npm scripts (run from `frontend/`)
 
-```bash
-curl -N -X POST http://127.0.0.1:8000/api/agents/chat/ \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Alarm E042 star-wheel jam", "machine_serial": "A3279"}'
-```
+| Script            | Purpose                                                                                                |
+| :---------------- | :----------------------------------------------------------------------------------------------------- |
+| `npm run dev`   | Start the Vite dev server at`http://localhost:5173` (proxies `/api` to `http://127.0.0.1:8000`). |
+| `npm run build` | Type-check (`tsc -b`) and build the production bundle to `frontend/dist/`.                         |
 
 ---
 
-## 📚 Documentation Map
+## Dataset Formats
 
-- 📖 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) — Business vision, domain context & codebase guide
-- 🏗 [documentation/ARCHITECTURE.md](documentation/ARCHITECTURE.md) — Detailed technical architecture
-- 🛠 [documentation/ORCHESTRATOR_GUIDE.md](documentation/ORCHESTRATOR_GUIDE.md) — Tool schemas & agent mapping
-- ⚡ [documentation/ORCHESTRATOR_IMPLEMENTATION.md](documentation/ORCHESTRATOR_IMPLEMENTATION.md) — Orchestrator integration & SSE contract
+### Fleet dataset — Excel workbook
+
+`initiliaze_database.py` loads `Backend/static/AROL_Q2_synthetic_fleet_dataset.xlsx` (or the `--excel` path given). It expects an `.xlsx` workbook with one sheet per entity, sheet name and column headers exactly as below:
+
+| Sheet                  | Columns                                                                                                                                                                            | Notes                                                                                                        |
+| :--------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------- |
+| `Companies`          | `companyId`, `companyName`, `country`, `sector`, `city`, `currency`, `locale`                                                                                        | `companyId` is the primary key referenced by other sheets.                                                 |
+| `Users`              | `userId`, `email`, `firstName`, `lastName`, `companyId`, `jobTitle`, `visibility`                                                                                    | `visibility` must be one of `full`, `technician`, `commercial`. New users get password `changeme`. |
+| `MachineModels`      | `modelId`, `modelCode`, `description`, `primitiveDiameter`, `nominalHeads`, `containerType`, `capType`, `industrySegment`, `notes`                               | `primitiveDiameter` and `notes` may be blank.                                                            |
+| `Machines`           | `machineId`, `companyId`, `modelId`, `serialNumber`, `deliveryDate`, `plantLocation`, `configurationProfile`, `plcFamily`, `softwareVersion`                     | `softwareVersion` may be blank. Dates as Excel dates or `YYYY-MM-DD`.                                    |
+| `Quotes`             | `quoteId`, `companyId`, `currency`, `createdAt`, `validUntil`, `description`                                                                                           |                                                                                                              |
+| `QuoteRevisions`     | `quoteRevisionId`, `quoteId`, `revisionNumber`, `revisionStatus`, `issuedAt`, `discountRate`, `changeSummary`                                                        |                                                                                                              |
+| `QuoteLines`         | `quoteLineId`, `quoteRevisionId`, `machineId`, `price`, `description`                                                                                                    | `machineId` may be blank (line not tied to an installed machine).                                          |
+| `Orders`             | `orderId`, `quoteId`, `companyId`, `orderStatus`, `orderDate`, `expectedDeliveryDate`, `shipmentStatus`, `currency`, `notes`                                     | `notes` may be blank.                                                                                      |
+| `OrderLines`         | `orderLineId`, `orderId`, `fulfillmentStatus`                                                                                                                                |                                                                                                              |
+| `TelemetrySnapshots` | `telemetryId`, `machineId`, `timestamp`, `operationalStatus`, `productionRateBph`, `uptimePercentage`, `alarmCount`, `temperatureC`, `energyKwh`, `healthNote` | `timestamp` as Excel datetime; naive timestamps are treated as UTC.                                        |
+| `Alarms`             | `alarmId`, `machineId`, `timestamp`, `alarmCode`, `severity`, `alarmStatus`                                                                                            |                                                                                                              |
+| `MaintenanceTickets` | `ticketId`, `machineId`, `alarmId`, `ticketType`, `ticketStatus`, `priority`, `createdDate`, `ownerRole`                                                           | `alarmId` may be blank (ticket not linked to an alarm).                                                    |
+
+Re-running the import is idempotent (rows are matched by their id column and updated in place); pass `--flush` to wipe existing fleet/quote/order data (superusers are kept) before a clean reload.
+
+### Manual documents — Markdown (for RAG ingestion)
+
+`ingest_markdown_manuals` reads every `.md` file under a directory (default `Data/Manuals_md`) and expects:
+
+- Structural headers using `#`, `##`, `###` to delimit chapters/sections (used as retrieval metadata).
+- Page boundaries marked with an HTML comment: `<!-- Page N -->` (N = page number in the source document).
+- The machine/model a file belongs to is inferred from its filename (a small built-in mapping handles a few known filenames; otherwise the file stem, uppercased, is used as the machine/model identifier).
+
+`ingest_manual` instead ingests one PDF file at a time (`--pdf`), tagging every chunk with the given `--model`, `--chapter`, and `--section`.

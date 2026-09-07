@@ -1,0 +1,149 @@
+.fleet-chat {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.fleet-chat__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 18px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.fleet-chat__toggle:hover {
+  background: var(--surface);
+}
+
+.fleet-chat__toggle-title {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.fleet-chat__toggle-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.fleet-chat--expanded .fleet-chat__toggle {
+  border-bottom: 1px solid var(--border);
+}
+
+.fleet-chat__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+}
+
+.fleet-chat__error {
+  margin: 0;
+  font-size: 13px;
+  color: #c0392b;
+}
+
+.fleet-chat__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: 360px;
+  padding: 4px;
+}
+
+.fleet-chat__composer {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  background: var(--bg);
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+.fleet-chat__composer:focus-within {
+  border-color: var(--arol-teal);
+  box-shadow: 0 0 0 3px rgba(20, 163, 163, 0.15);
+}
+
+.fleet-chat__input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  cursor: text;
+}
+
+.fleet-chat__textarea {
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-h);
+  font: inherit;
+  padding: 6px 4px;
+  max-height: 120px;
+}
+
+.fleet-chat__send {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--arol-navy);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 150ms, transform 100ms;
+}
+
+.fleet-chat__send:hover:not(:disabled) {
+  background: var(--arol-navy-light);
+}
+
+.fleet-chat__send:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.fleet-chat__send:disabled {
+  background: var(--border);
+  color: var(--text);
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .fleet-chat__toggle {
+    padding: 12px 14px;
+  }
+
+  .fleet-chat__panel {
+    padding: 12px 14px;
+  }
+
+  .fleet-chat__textarea {
+    font-size: 16px;
+  }
+
+  .fleet-chat__send {
+    width: 44px;
+    height: 44px;
+  }
+}

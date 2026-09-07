@@ -29,14 +29,26 @@ class OrderStatusInput(ScopedContext):
     """No extra filters — orders are always scoped to the caller's customer + machine."""
 
 
+class OrderLineRecord(BaseModel):
+    order_line_id: str
+    fulfillment_status: str
+
+
 class OrderRecord(BaseModel):
     order_id: str
     quote_id: str | None = None
     order_date: str
+    expected_delivery_date: str | None = None
     status: str
+    shipment_status: str | None = None
+    currency: str = 'EUR'
+    notes: str = ''
     item_summary: str
     amount_eur: float
+    order_lines: list[OrderLineRecord] = Field(default_factory=list)
+
 
 
 class OrderStatusOutput(BaseModel):
     orders: list[OrderRecord]
+

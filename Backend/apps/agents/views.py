@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.http import HttpRequest, JsonResponse, StreamingHttpResponse
 from django.views.decorators.http import require_POST
 
-from apps.agents.factory import get_orchestrator
+from apps.agents.factory import get_fleet_orchestrator, get_orchestrator
 from apps.agents.ports import OrchestratorChunk
 from apps.machines.models import Machine
 
@@ -134,6 +134,55 @@ def chat_view(request: HttpRequest) -> StreamingHttpResponse | JsonResponse:
         except NotImplementedError as exc:
             yield _chunk_to_sse(OrchestratorChunk(type='error', message=str(exc)))
             yield _chunk_to_sse(OrchestratorChunk(type='done'))
+        except Exception as exc:  # noqa: BLE001
+            yield _chunk_to_sse(
+                OrchestratorChunk(type='error', message=f'Orchestrator failed: {exc}'),
+            )
+            yield _chunk_to_sse(OrchestratorChunk(type='done'))
+
+    response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    response['X-Session-Id'] = session_id
+    response['Access-Control-Expose-Headers'] = 'X-Session-Id'
+    return response
+
+
+@require_POST
+def fleet_chat_view(request: HttpRequest) -> StreamingHttpResponse | JsonResponse:
+    """
+    POST /api/agents/fleet-chat/
+
+    General, company-scoped chatbot (machines owned, machine models, company
+    profile, teammate directory) -- the counterpart to chat_view() above, but
+    never scoped to a single machine_serial, so it works even for a company
+    that owns zero machines.
+
+    Body: { "message": "...", "session_id": "..." (optional) }
+    Response: text/event-stream with JSON data lines (token | tool | step | done | error).
+    """
+    if not request.user.is_authenticated:
+        return _json_error('Authentication required.', status=401)
+
+    body = _parse_body(request)
+    message = (body.get('message') or '').strip()
+    if not message:
+        return _json_error('message is required.')
+
+    session_id = (body.get('session_id') or '').strip() or str(uuid.uuid4())
+    customer_id = request.user.username
+    orchestrator = get_fleet_orchestrator()
+
+    def event_stream():
+        try:
+            for chunk in orchestrator.run(
+                customer_id=customer_id,
+                message=message,
+                session_id=session_id,
+            ):
+                yield _chunk_to_sse(chunk)
+                if chunk.type in {'error', 'done'}:
+                    break
         except Exception as exc:  # noqa: BLE001
             yield _chunk_to_sse(
                 OrchestratorChunk(type='error', message=f'Orchestrator failed: {exc}'),
