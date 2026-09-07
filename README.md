@@ -37,6 +37,30 @@ QDRANT_URL=http://qdrant:6333 QDRANT_API_KEY= docker compose --profile local-qdr
 
 ### Option B — Manual (local processes)
 
+#### Database setup
+
+Create the PostgreSQL user and database before starting the backend. Connect as a superuser (e.g. `psql -U postgres`), then run these commands **one at a time**:
+
+**1.** Run only this first:
+
+```sql
+CREATE USER arol WITH PASSWORD 'arol';
+```
+
+**2.** Then run only this line by itself (highlight it → Ctrl+Enter):
+
+```sql
+CREATE DATABASE arol OWNER arol;
+```
+
+**3.** Then run:
+
+```sql
+GRANT ALL PRIVILEGES ON DATABASE arol TO arol;
+```
+
+These match the defaults in `.env` (`POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` all set to `arol`).
+
 **1. Backend** — from the repository root:
 
 ```bash
