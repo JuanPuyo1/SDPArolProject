@@ -36,7 +36,7 @@ sys.exit(1)
 PY
 
 python manage.py migrate --noinput
-python manage.py collectstatic --noinput --ignore "*.pdf"
+python manage.py collectstatic --noinput --ignore "*.pdf" --ignore "*.xlsx"
 
 if [ "${RUN_DB_INIT:-1}" = "1" ]; then
     if python - <<'PY'

@@ -58,6 +58,10 @@ RUN chmod +x /entrypoint.sh \
 
 COPY --chown=appuser:appuser Backend/ /app/
 
+# WORKDIR creates /app as root; mkdir STATIC_ROOT then chown so appuser can collectstatic.
+RUN mkdir -p /app/staticfiles \
+    && chown -R appuser:appuser /app
+
 USER appuser
 EXPOSE 8000
 
