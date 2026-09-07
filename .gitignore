@@ -25,3 +25,6 @@ dist/
 
 .cursorrules
 Backend/:memory:.ses
+
+.vscode
+pyrefly.toml
