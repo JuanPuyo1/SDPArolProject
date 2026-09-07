@@ -1,6 +1,5 @@
 # Local datasets
 Data/*
-!Data/extract_full_manuals.py
 Data.zip
 *.csv
 
